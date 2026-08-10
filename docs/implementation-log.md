@@ -1,5 +1,17 @@
 # Implementation log
 
+## 2026-08-10 - .NET SDK alignment for CI and container builds
+
+Summary:
+
+- Updated `global.json` from SDK `10.0.102` to the latest stable .NET 10 SDK, `10.0.302`, matching the digest-pinned `10.0.302-noble` Docker build image.
+- Disabled SDK roll-forward and prereleases so local solution commands, `actions/setup-dotnet`, and the Docker build require exactly the same stable SDK version.
+- Updated the developer guidance in `README.md` to reflect the common SDK version.
+
+Framework contract verification:
+
+- Verified on 2026-08-10 against the official Microsoft .NET 10 download page that SDK `10.0.302`, released 2026-07-14, is the latest stable .NET 10 SDK: <https://dotnet.microsoft.com/en-us/download/dotnet/10.0>.
+
 ## 2026-08-10 — Version 1.0 interface refresh
 
 - Reworked the application shell, responsive navigation, typography, color system, cards, tables, forms,

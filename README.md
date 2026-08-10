@@ -39,7 +39,7 @@ disk pressure, log, shutdown, and reverse-proxy guidance. Release evidence and r
 
 ## Develop and verify
 
-The repository pins stable .NET SDK `10.0.102` and targets `net10.0`.
+The repository pins stable .NET SDK `10.0.302` and targets `net10.0`.
 
 ```powershell
 dotnet restore ShrinkFrame.sln
