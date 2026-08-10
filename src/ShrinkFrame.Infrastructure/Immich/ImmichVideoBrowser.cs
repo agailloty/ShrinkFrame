@@ -66,7 +66,7 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
             var exif = x.TryGetProperty("exifInfo", out var e) && e.ValueKind == JsonValueKind.Object ? e : default;
             return new ImmichVideoDetail(assetId, RequiredString(x, "originalFileName"), OptionalString(x, "originalMimeType"),
                 RequiredDate(x, "fileCreatedAt"), RequiredDate(x, "fileModifiedAt"), ReadDuration(x),
-                OptionalInt(x, "width"), OptionalInt(x, "height"), OptionalString(exif, "description"),
+                OptionalInt(x, "width"), OptionalInt(x, "height"), ReadFileSize(exif), OptionalString(exif, "description"),
                 OptionalDouble(exif, "latitude"), OptionalDouble(exif, "longitude"),
                 albums.RootElement.EnumerateArray().Select(a => RequiredString(a, "id")).ToArray());
         }, cancellationToken);
@@ -96,6 +96,55 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
             buffer.Position = 0;
             return new ImmichThumbnail(buffer, type, buffer.Length);
         }, cancellationToken);
+
+    public async Task<ImmichVideoContent> OpenVideoAsync(ConnectionId connectionId, string assetId,
+        string? rangeHeader, CancellationToken cancellationToken = default)
+    {
+        ValidateAssetId(assetId);
+        RangeHeaderValue? range = null;
+        if (!string.IsNullOrWhiteSpace(rangeHeader)
+            && (!RangeHeaderValue.TryParse(rangeHeader, out range) || range.Ranges.Count != 1))
+            throw new ImmichConnectionException("immich.video.range_invalid", "The requested video byte range is invalid.");
+
+        var stored = await RequireConnectionAsync(connectionId, cancellationToken);
+        byte[]? keyBytes = null;
+        BrowserHttpClient? client = null;
+        HttpResponseMessage? response = null;
+        try
+        {
+            keyBytes = protector.Unprotect(stored.ApiKeyEnvelope!.Payload);
+            client = new BrowserHttpClient(stored.Connection.BaseUrl, stored.Connection.AllowInvalidCertificate,
+                Encoding.UTF8.GetString(keyBytes), options);
+            response = await client.SendAsync(HttpMethod.Get,
+                $"api/assets/{Uri.EscapeDataString(assetId)}/original", null, cancellationToken, range);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                throw new ImmichConnectionException("immich.asset.unavailable", "The video is no longer available.");
+            if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+                throw new ImmichConnectionException("immich.video.range_unsatisfiable", "The requested video byte range is unavailable.");
+            await RequireSuccessAsync(response);
+            var type = response.Content.Headers.ContentType?.MediaType;
+            if (type is null || (!type.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
+                && type != "application/octet-stream"))
+                throw new ImmichConnectionException("immich.video.content_type", "Immich returned an unsupported video content type.");
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var lifetime = new VideoStreamLifetime(response, client);
+            response = null;
+            client = null;
+            return new ImmichVideoContent(stream, type, lifetime.Response.Content.Headers.ContentLength,
+                lifetime.Response.Content.Headers.ContentRange?.ToString(),
+                lifetime.Response.StatusCode == HttpStatusCode.PartialContent, lifetime);
+        }
+        catch (CryptographicException exception)
+        {
+            throw new ImmichConnectionException("connection.api_key.unavailable", "The saved API key cannot be decrypted.", exception);
+        }
+        finally
+        {
+            response?.Dispose();
+            client?.Dispose();
+            if (keyBytes is not null) CryptographicOperations.ZeroMemory(keyBytes);
+        }
+    }
 
     public async Task<IReadOnlySet<string>> GetSelectionAsync(ConnectionId connectionId, CancellationToken cancellationToken = default)
     {
@@ -147,12 +196,16 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
     private static bool IsVisibleVideo(JsonElement x) => OptionalString(x, "type") == "VIDEO"
         && (!x.TryGetProperty("isTrashed", out var trashed) || trashed.ValueKind != JsonValueKind.True);
     private static ImmichVideoSummary MapSummary(JsonElement x) => new(RequiredString(x, "id"), RequiredString(x, "originalFileName"),
-        OptionalString(x, "originalMimeType"), RequiredDate(x, "fileCreatedAt"), ReadDuration(x), OptionalInt(x, "width"), OptionalInt(x, "height"), null);
+        OptionalString(x, "originalMimeType"), RequiredDate(x, "fileCreatedAt"), ReadDuration(x), OptionalInt(x, "width"), OptionalInt(x, "height"),
+        x.TryGetProperty("exifInfo", out var exif) ? ReadFileSize(exif) : null);
     private static int? ReadNullablePage(JsonElement x, string name) => x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null;
     private static string RequiredString(JsonElement x, string name) => x.GetProperty(name).GetString() ?? throw new JsonException($"{name} is missing.");
     private static string? OptionalString(JsonElement x, string name) => x.ValueKind == JsonValueKind.Object && x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static int? OptionalInt(JsonElement x, string name) => x.ValueKind == JsonValueKind.Object && x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null;
     private static double? OptionalDouble(JsonElement x, string name) => x.ValueKind == JsonValueKind.Object && x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetDouble() : null;
+    private static long? ReadFileSize(JsonElement x) => x.ValueKind == JsonValueKind.Object
+        && x.TryGetProperty("fileSizeInByte", out var value) && value.ValueKind == JsonValueKind.Number
+        && value.TryGetInt64(out var bytes) && bytes >= 0 ? bytes : null;
     private static DateTimeOffset RequiredDate(JsonElement x, string name) => x.GetProperty(name).GetDateTimeOffset();
     private static TimeSpan? ReadDuration(JsonElement x) => x.TryGetProperty("duration", out var value) && value.ValueKind == JsonValueKind.Number ? TimeSpan.FromMilliseconds(value.GetDouble()) : null;
     private static void ValidateAssetId(string id) { if (!Guid.TryParse(id, out _)) throw new ImmichConnectionException("immich.asset_id.invalid", "The asset identifier is invalid."); }
@@ -191,15 +244,32 @@ internal sealed class BrowserHttpClient : IDisposable
         try { return await JsonDocument.ParseAsync(limited, cancellationToken: cancellationToken); }
         catch (JsonException exception) { throw new ImmichConnectionException("connection.contract.invalid", "Immich returned an unexpected v3.1 response.", exception); }
     }
-    public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+    public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body,
+        CancellationToken cancellationToken, RangeHeaderValue? range = null)
     {
         using var request = new HttpRequestMessage(method, new Uri(origin, path));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(method == HttpMethod.Get && path.EndsWith("thumbnail", StringComparison.Ordinal) ? "image/*" : "application/json"));
+        var accept = method == HttpMethod.Get && path.EndsWith("thumbnail", StringComparison.Ordinal) ? "image/*"
+            : method == HttpMethod.Get && path.EndsWith("original", StringComparison.Ordinal) ? "video/*"
+            : "application/json";
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(accept));
         request.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+        request.Headers.Range = range;
         if (body is not null) request.Content = JsonContent.Create(body);
         try { return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken); }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested) { throw new ImmichConnectionException("connection.timeout", "The Immich request timed out.", exception); }
         catch (HttpRequestException exception) { throw new ImmichConnectionException("connection.unreachable", "The Immich server could not be reached.", exception); }
     }
     public void Dispose() => client.Dispose();
+}
+
+internal sealed class VideoStreamLifetime(HttpResponseMessage response, BrowserHttpClient client) : IAsyncDisposable
+{
+    public HttpResponseMessage Response { get; } = response;
+
+    public ValueTask DisposeAsync()
+    {
+        Response.Dispose();
+        client.Dispose();
+        return ValueTask.CompletedTask;
+    }
 }

@@ -36,7 +36,7 @@
                 {
                     <div class="col" @key="video.AssetId"><article class="card h-100">
                         <img src="@ThumbnailUrl(video.AssetId)" class="card-img-top object-fit-cover" style="height:10rem" alt="Thumbnail for @video.FileName" loading="lazy" />
-                        <div class="card-body"><h3 class="h6 text-break">@video.FileName</h3><div class="small text-muted">@video.TakenAt.LocalDateTime.ToString("g") · @Dimensions(video)</div></div>
+                        <div class="card-body"><h3 class="h6 text-break">@video.FileName</h3><div class="small text-muted">@video.TakenAt.LocalDateTime.ToString("g") · @Dimensions(video) · @Bytes(video.SizeBytes)</div></div>
                         <div class="card-footer d-flex justify-content-between align-items-center">
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="select-@video.AssetId" checked="@selection.Contains(video.AssetId)" @onchange="e => ToggleAsync(video.AssetId, (bool)(e.Value ?? false))" /><label class="form-check-label" for="select-@video.AssetId">Select</label></div>
                             <button class="btn btn-sm btn-link" @onclick="() => ShowDetailAsync(video.AssetId)">Details</button>
@@ -49,15 +49,27 @@
                 <button class="btn btn-outline-secondary" disabled="@(page.NextPage is null)" @onclick="NextAsync">Next</button>
             </nav>
         }
-        @if (detail is not null)
-        {
-            <aside class="card mt-4" aria-labelledby="detail-title"><div class="card-body">
-                <div class="d-flex justify-content-between"><h3 id="detail-title" class="h5">Video details</h3><button class="btn-close" aria-label="Close details" @onclick="() => detail = null"></button></div>
-                <dl class="row mb-0"><dt class="col-sm-3">File</dt><dd class="col-sm-9 text-break">@detail.FileName</dd><dt class="col-sm-3">Taken</dt><dd class="col-sm-9">@detail.TakenAt.LocalDateTime.ToString("F")</dd><dt class="col-sm-3">Dimensions</dt><dd class="col-sm-9">@detail.Width × @detail.Height</dd><dt class="col-sm-3">Duration</dt><dd class="col-sm-9">@detail.Duration</dd><dt class="col-sm-3">Description</dt><dd class="col-sm-9">@(detail.Description ?? "—")</dd><dt class="col-sm-3">Albums</dt><dd class="col-sm-9">@detail.AlbumIds.Count</dd></dl>
-            </div></aside>
-        }
     }
 </div>
+
+@if (detail is not null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="detail-title" @onclick="CloseDetail">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" @onclick:stopPropagation="true">
+            <div class="modal-content">
+                <div class="modal-header"><h2 id="detail-title" class="modal-title h5">Video details</h2><button class="btn-close" aria-label="Close details" @onclick="CloseDetail"></button></div>
+                <div class="modal-body">
+                    <video class="w-100 bg-black rounded mb-3" controls preload="metadata" poster="@ThumbnailUrl(detail.AssetId)">
+                        <source src="@VideoUrl(detail.AssetId)" type="@(detail.MimeType ?? "video/mp4")" />
+                        Your browser cannot play this video.
+                    </video>
+                    <dl class="row mb-0"><dt class="col-sm-3">File</dt><dd class="col-sm-9 text-break">@detail.FileName</dd><dt class="col-sm-3">Size</dt><dd class="col-sm-9">@Bytes(detail.SizeBytes)</dd><dt class="col-sm-3">Taken</dt><dd class="col-sm-9">@detail.TakenAt.LocalDateTime.ToString("F")</dd><dt class="col-sm-3">Dimensions</dt><dd class="col-sm-9">@detail.Width × @detail.Height</dd><dt class="col-sm-3">Duration</dt><dd class="col-sm-9">@detail.Duration</dd><dt class="col-sm-3">Description</dt><dd class="col-sm-9">@(detail.Description ?? "—")</dd><dt class="col-sm-3">Albums</dt><dd class="col-sm-9">@detail.AlbumIds.Count</dd></dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public EventCallback<ConnectionId?> ConnectionChanged { get; set; }
@@ -104,7 +116,14 @@
     }
     private async Task ShowDetailAsync(string id) { await RunAsync(async () => detail = await Browser.GetDetailAsync(selectedConnection!.Id, id)); }
     private string ThumbnailUrl(string id) => $"/api/immich/{selectedConnection!.Id.Value}/assets/{id}/thumbnail";
+    private string VideoUrl(string id) => $"/api/immich/{selectedConnection!.Id.Value}/assets/{id}/video";
+    private void CloseDetail() => detail = null;
     private static string Dimensions(ImmichVideoSummary x) => x.Width is null ? "Unknown size" : $"{x.Width} × {x.Height}";
+    private static string Bytes(long? value) => value is null ? "Unknown file size"
+        : value < 1024 ? $"{value:N0} B"
+        : value < 1024L * 1024 ? $"{value / 1024d:N1} KB"
+        : value < 1024L * 1024 * 1024 ? $"{value / 1024d / 1024d:N1} MB"
+        : $"{value / 1024d / 1024d / 1024d:N1} GB";
     private static DateTimeOffset? ToOffset(DateTime? value, bool endOfDay = false) => value is null ? null : new DateTimeOffset(endOfDay ? value.Value.Date.AddDays(1).AddTicks(-1) : value.Value.Date);
     private async Task RunAsync(Func<Task> action) { ClearError(); try { await action(); } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (KeyNotFoundException) { errorCode = "connection.deleted"; error = "The connection was deleted. Choose another connection."; } }
     private void ClearError() { errorCode = null; error = null; }

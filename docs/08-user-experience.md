@@ -25,7 +25,7 @@ Choose Browser Upload or one enabled Immich connection. Generate an editable bat
 
 Browser: drag-and-drop plus native multi-file picker, per-file upload progress, remove/retry controls.
 
-Immich: 50-item explicit pages, filters for taken period and album, supported sort orders, thumbnails through ShrinkFrame, detail panel, persistent cross-page selection, Select Page and Clear Selection. A byte-size refinement is shown only when sizes are known and is explicitly scoped to loaded results; it is never presented as a server-global filter. No video playback in version 1.0.
+Immich: 50-item explicit pages, filters for taken period and album, supported sort orders, thumbnails through ShrinkFrame, video playback and details in a modal, persistent cross-page selection, Select Page and Clear Selection. Playback is streamed through a range-aware ShrinkFrame proxy so the browser never receives the Immich API key. A byte-size refinement is shown only when sizes are known and is explicitly scoped to loaded results; it is never presented as a server-global filter.
 
 ### Step 3: Compression
 

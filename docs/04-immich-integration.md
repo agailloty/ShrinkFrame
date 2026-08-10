@@ -109,6 +109,7 @@ Do not use internal timeline endpoints or deprecated update endpoints. Before im
 - An interrupted version 1.0 transfer restarts from zero.
 - Validate expected content length when present and probe the completed file.
 - Thumbnail proxy applies bounded size, content-type allowlist, short cache headers, and cancellation.
+- Browser playback proxies the original through ShrinkFrame, forwards at most one validated `Range` request, preserves `206`, `Content-Range`, and `Content-Length`, disables caching, and streams with a bounded buffer. The API key remains only in the server-side `x-api-key` header.
 
 ## Publication idempotency
 
@@ -138,3 +139,9 @@ retry runs the checksum check first and uploads again only when Immich says no a
 replays an ambiguous multipart body.
 
 An album-add failure retains the new asset and transitions to `PartiallyPublished`. Retry only missing album operations.
+
+## Preview file size
+
+The browser reads the optional `exifInfo.fileSizeInByte` value returned by Immich when `withExif=true` and
+shows it on preview cards and in the details modal. Missing, negative, non-integral, or out-of-range values
+remain unknown; ShrinkFrame does not download an original merely to determine its size.

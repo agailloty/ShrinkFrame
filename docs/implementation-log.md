@@ -207,6 +207,24 @@ Verification performed:
   without deletion.
 - `git diff --check` — completed with no whitespace errors.
 
+## 2026-08-10 — Immich preview file sizes
+
+Summary:
+
+- Read the optional documented `exifInfo.fileSizeInByte` value from Immich search and detail responses.
+- Displayed human-readable file sizes on preview cards and in the video details modal, while retaining an explicit unknown state when Immich omits the value.
+- Kept size discovery metadata-only; no original video is downloaded or buffered to determine its length.
+
+Contract verification:
+
+- Verified on 2026-08-10 against Immich's official `ExifResponseDto` documentation that `fileSizeInByte` is the nullable file-size-in-bytes field.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed: 209 tests, 0 failed, 0 skipped (167 Domain and 42 Infrastructure).
+- `git diff --check` — completed with no whitespace errors.
+
 ## 2026-08-10 — Prompt 10: durable worker orchestration
 
 Summary:
@@ -584,3 +602,20 @@ Verification performed:
 - `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
 - `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 203 tests, 0 failed, 0 skipped (167 Domain and 36 Infrastructure).
 - `git diff --check` — completed with no whitespace errors before this log entry.
+## 2026-08-10 — Immich preview playback and details modal
+
+Summary:
+
+- Added range-aware, bounded-buffer streaming of Immich originals through a same-origin ShrinkFrame endpoint. The browser never receives the Immich URL or API key, responses are not cached, and unsupported content types and malformed/multiple ranges are rejected.
+- Moved preview details into an accessible Bootstrap modal and added native browser video controls with the existing proxied thumbnail as poster.
+- Updated the Immich integration and user-experience documentation to record the post-1.0 playback decision.
+
+Decision deviations:
+
+- The original version 1.0 UX excluded playback. Playback is now included because it can reuse the authenticated server boundary without disclosing credentials or buffering videos in memory.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed: 209 tests, 0 failed, 0 skipped (167 Domain and 42 Infrastructure).
+- `git diff --check` — completed with no whitespace errors.
