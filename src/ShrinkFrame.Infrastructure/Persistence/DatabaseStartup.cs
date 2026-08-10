@@ -87,6 +87,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IBatchRepository, BatchRepository>();
         services.AddScoped<ICompressionJobRepository, CompressionJobRepository>();
         services.AddScoped<IWorkerStore, WorkerStore>();
+        services.AddScoped<IOperationsService, OperationsService>();
         services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
         services.AddSingleton<IStartupRecovery, StartupRecovery>();
         services.AddSingleton(TimeProvider.System);

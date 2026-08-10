@@ -269,6 +269,90 @@ public sealed class PersistenceTests
         Assert.IsNull(recompression.OutputArtifact);
     }
 
+    [TestMethod]
+    public async Task OperationsRejectActiveDeletionAndDeleteOnlyConfirmedTerminalJobArtifactsAndHistory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shrinkframe-operations-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var storage = new LocalWorkStorage(new WorkStorageOptions { WorkRoot = root });
+            var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+            var batch = new CompressionBatch(BatchId.New(), "Cleanup", SourceKind.BrowserUpload, null,
+                BuiltInPresets.Snapshot(new("balanced")), now);
+            var terminal = new CompressionJob(JobId.New(), batch.Id, VideoSourceRef.Browser("terminal"),
+                new("balanced"), batch.DefaultOptions, now);
+            var active = new CompressionJob(JobId.New(), batch.Id, VideoSourceRef.Browser("active"),
+                new("balanced"), batch.DefaultOptions, now);
+            var reference = new CompressionJob(JobId.New(), batch.Id, VideoSourceRef.Browser("reference"),
+                new("balanced"), batch.DefaultOptions, now);
+            active.TransitionTo(JobState.Acquiring, now);
+            batch.AddJob(terminal.Id, terminal.Source, now); batch.AddJob(active.Id, active.Source, now);
+            batch.AddJob(reference.Id, reference.Source, now);
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                await new BatchRepository(db).AddAsync(batch);
+                await new CompressionJobRepository(db).AddAsync(terminal);
+                await new CompressionJobRepository(db).AddAsync(active);
+                await new CompressionJobRepository(db).AddAsync(reference);
+            }
+            var artifact = storage.Allocate(batch.Id, terminal.Id, ArtifactKind.Source);
+            await storage.CopyToNewAsync(new MemoryStream([1, 2, 3]), artifact.Partial);
+            await storage.FinalizeAsync(artifact.Partial, artifact.Final);
+            await using (var db = await factory.CreateDbContextAsync())
+            {
+                var referenceRepository = new CompressionJobRepository(db);
+                var storedReference = (await referenceRepository.GetAsync(reference.Id))!;
+                storedReference.Value.RecordProbe(new VideoMetadata("reference.mp4", "video/mp4", 3,
+                    TimeSpan.FromSeconds(1), 16, 16, "h264", [], now, 0), artifact.Final);
+                await referenceRepository.UpdateAsync(storedReference.Value, storedReference.Version);
+            }
+            var service = new OperationsService(factory, storage, new FixedReporter());
+
+            var activeResult = await service.DeleteJobAsync(active.Id, confirmed: true);
+            Assert.IsFalse(activeResult.Succeeded);
+            Assert.AreEqual("storage.job.active", activeResult.Code);
+            var unconfirmed = await service.DeleteJobAsync(terminal.Id, confirmed: false);
+            Assert.AreEqual("storage.confirmation.required", unconfirmed.Code);
+            var referenced = await service.DeleteJobAsync(terminal.Id, confirmed: true);
+            Assert.AreEqual("storage.job.referenced", referenced.Code);
+            Assert.IsTrue((await service.DeleteJobAsync(reference.Id, confirmed: true)).Succeeded);
+            var deleted = await service.DeleteJobAsync(terminal.Id, confirmed: true);
+            Assert.IsTrue(deleted.Succeeded);
+            Assert.AreEqual(0, (await storage.InventoryAsync([new(batch.Id, terminal.Id, artifact.Final)])).ArtifactBytes);
+            await using var verification = await factory.CreateDbContextAsync();
+            var repository = new CompressionJobRepository(verification);
+            Assert.IsNull(await repository.GetAsync(terminal.Id));
+            Assert.IsNotNull(await repository.GetAsync(active.Id));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task StorageReconcilesKnownArtifactsAndReportsOrphansWithoutDeletingThem()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "shrinkframe-operations-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var orphanDirectory = Path.Combine(root, "orphans"); Directory.CreateDirectory(orphanDirectory);
+            var orphanPath = Path.Combine(orphanDirectory, "leftover.bin"); await File.WriteAllBytesAsync(orphanPath, new byte[17]);
+            var storage = new LocalWorkStorage(new WorkStorageOptions { WorkRoot = root });
+            var page = await new OperationsService(factory, storage, new FixedReporter()).GetStorageAsync();
+            Assert.AreEqual(17, page.Summary.ApplicationBytes);
+            Assert.AreEqual(17, page.Summary.OrphanBytes);
+            Assert.AreEqual("orphans/leftover.bin", page.Orphans.Single().Key.Key);
+            Assert.IsTrue(File.Exists(orphanPath));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private async Task<(JobId Id, long Version)> AddQueuedBrowserJobAsync()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
@@ -311,6 +395,11 @@ public sealed class PersistenceTests
     {
         public CapacityAdmission Evaluate(long sourceBytes, bool forceRequested = false) => new(sourceBytes, 10_000, 1, 0,
             sufficient ? CapacityReason.Sufficient : CapacityReason.InsufficientSpace, forceRequested);
+    }
+
+    private sealed class FixedReporter : IStorageCapacityReporter
+    {
+        public StorageCapacity GetCapacity() => new(1_000_000, 900_000);
     }
 
     private sealed class FixedTime(DateTimeOffset value) : TimeProvider

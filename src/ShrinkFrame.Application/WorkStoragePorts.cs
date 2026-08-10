@@ -8,6 +8,7 @@ public sealed record ArtifactAllocation(ArtifactRef Partial, ArtifactRef Final);
 public sealed record OwnedArtifact(BatchId BatchId, JobId JobId, ArtifactRef Artifact);
 public sealed record ArtifactInventoryItem(JobId JobId, ArtifactRef Artifact, long SizeBytes, bool IsPartial);
 public sealed record StorageInventory(long ArtifactBytes, IReadOnlyList<ArtifactInventoryItem> Artifacts);
+public sealed record UnownedArtifactInventoryItem(ArtifactRef Artifact, long SizeBytes, DateTimeOffset LastModifiedAt);
 public sealed record ArtifactDeletionResult(ArtifactRef Artifact, bool Deleted, string? ErrorCode);
 public sealed record StorageDeletionReport(IReadOnlyList<ArtifactDeletionResult> Results)
 {
@@ -38,6 +39,7 @@ public interface IWorkStorage
     Task<long> FinalizeAsync(ArtifactRef partialArtifact, ArtifactRef finalArtifact, CancellationToken cancellationToken = default);
     Task<StorageDeletionReport> DeleteKnownAsync(IReadOnlyCollection<OwnedArtifact> artifacts, CancellationToken cancellationToken = default);
     Task<StorageInventory> InventoryAsync(IReadOnlyCollection<OwnedArtifact> artifacts, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UnownedArtifactInventoryItem>> InventoryAllAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IStorageCapacityReporter

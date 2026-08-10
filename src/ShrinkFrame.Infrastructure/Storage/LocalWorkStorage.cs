@@ -143,6 +143,28 @@ public sealed class LocalWorkStorage : IWorkStorage, IWorkStorageStartupValidato
         return Task.FromResult(new StorageInventory(total, items));
     }
 
+    public Task<IReadOnlyList<UnownedArtifactInventoryItem>> InventoryAllAsync(CancellationToken cancellationToken = default)
+    {
+        var results = new List<UnownedArtifactInventoryItem>();
+        if (!Directory.Exists(root)) return Task.FromResult<IReadOnlyList<UnownedArtifactInventoryItem>>(results);
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.TryPop(out var directory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            CheckLink(directory);
+            foreach (var child in Directory.EnumerateDirectories(directory)) { CheckLink(child); pending.Push(child); }
+            foreach (var file in Directory.EnumerateFiles(directory))
+            {
+                CheckLink(file);
+                var info = new FileInfo(file);
+                var key = Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '/');
+                results.Add(new(new ArtifactRef(key), info.Length, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero)));
+            }
+        }
+        return Task.FromResult<IReadOnlyList<UnownedArtifactInventoryItem>>(results.OrderBy(x => x.Artifact.Key).ToArray());
+    }
+
     public async Task ValidateAsync(CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(root);

@@ -1,5 +1,38 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 13: dashboard, history and storage
+
+Summary:
+
+- Replaced the operational placeholders with an empty/offline-safe dashboard, searchable batch history,
+  batch/job detail, and storage inventory pages. Status and progress are always rendered as text rather
+  than conveyed by color alone.
+- Added Application-owned operational query/deletion contracts and an Infrastructure implementation for
+  recent work, queue and connection health, source/output reduction accounting, findings, the latest 50
+  bounded log entries, artifact ownership, ages, retry eligibility, and disk capacity.
+- Added full work-root inventory for reconciliation. Durable job ownership is compared with exact
+  server-generated source, output, probe, and log final/partial keys; unreferenced files are reported as
+  orphans and never deleted automatically.
+- Added explicitly confirmed job deletion. Active and publishing jobs are rejected; known artifacts are
+  deleted individually through `IWorkStorage`; deletion stops on the first filesystem error and retains
+  history with a stable retryable diagnostic. Database history is removed only after all file operations
+  succeed.
+
+Decision deviations:
+
+- None.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and
+  zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed: 205 tests,
+  0 failed, 0 skipped (167 Domain and 38 Infrastructure).
+- Added integration coverage for active and referenced-artifact deletion rejection, missing-confirmation
+  rejection, successful exact artifact/history deletion while preserving another job, and orphan accounting
+  without deletion.
+- `git diff --check` — completed with no whitespace errors.
+
 ## 2026-08-10 — Prompt 10: durable worker orchestration
 
 Summary:

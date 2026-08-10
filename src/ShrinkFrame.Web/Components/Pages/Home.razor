@@ -1,9 +1,21 @@
-﻿@page "/"
+@page "/"
+@using ShrinkFrame.Application
+@inject IOperationsService Operations
 
 <PageTitle>Dashboard</PageTitle>
-
-<h1>Dashboard</h1>
-
-<p>Recent batches and storage status will appear here.</p>
-
-<a class="btn btn-primary" href="new-batch">New Batch</a>
+<div class="d-flex justify-content-between align-items-center mb-3"><h1>Dashboard</h1><a class="btn btn-primary" href="new-batch">New Batch</a></div>
+@if (error is not null) { <div class="alert alert-warning" role="alert"><strong>dashboard.unavailable</strong> @error <button class="btn btn-sm btn-outline-dark ms-2" @onclick="LoadAsync">Retry</button></div> }
+else if (view is null) { <p role="status">Loading operational status…</p> }
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6">Storage</h2><p class="fs-4 mb-1">@Bytes(view.Storage.ApplicationBytes)</p><p class="mb-0">@Bytes(view.Storage.FreeBytes) free of @Bytes(view.Storage.TotalBytes)@if (view.Storage.OrphanCount > 0) { <span> · @view.Storage.OrphanCount orphaned</span> }</p></div></section></div>
+        <div class="col-sm-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6">Active work</h2><p class="fs-4 mb-1">@view.ActiveJobs</p><p class="mb-0">jobs currently active</p></div></section></div>
+        <div class="col-sm-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6">Queue</h2><p class="fs-4 mb-1">@view.QueuedJobs</p><p class="mb-0">jobs waiting</p></div></section></div>
+        <div class="col-sm-6 col-xl-3"><section class="card h-100"><div class="card-body"><h2 class="h6">Immich health</h2><p class="fs-4 mb-1">@view.HealthyConnections healthy</p><p class="mb-0">@view.UnhealthyConnections need attention</p></div></section></div>
+    </div>
+    <h2 class="h4">Recent batches</h2>
+    @if (view.RecentBatches.Count == 0) { <div class="alert alert-light border">No batches yet. Create a batch to get started.</div> }
+    else { <div class="table-responsive"><table class="table"><thead><tr><th>Name</th><th>Status</th><th>Source</th><th>Updated</th></tr></thead><tbody>@foreach (var batch in view.RecentBatches) { <tr><td><a href="@($"batches/{batch.Id.Value:D}")">@batch.Name</a></td><td>@batch.Status</td><td>@batch.Source</td><td>@batch.UpdatedAt.LocalDateTime.ToString("g")</td></tr> }</tbody></table></div> }
+}
+@code { private DashboardView? view; private string? error; protected override Task OnInitializedAsync() => LoadAsync(); private async Task LoadAsync() { try { error = null; view = await Operations.GetDashboardAsync(); } catch (Exception ex) { error = ex.Message; } } private static string Bytes(long value) => value < 1024 ? $"{value:N0} B" : value < 1024L * 1024 ? $"{value / 1024d:N1} KB" : value < 1024L * 1024 * 1024 ? $"{value / 1024d / 1024d:N1} MB" : $"{value / 1024d / 1024d / 1024d:N1} GB"; }

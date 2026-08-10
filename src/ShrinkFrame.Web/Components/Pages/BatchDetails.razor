@@ -1,0 +1,24 @@
+@page "/batches/{Id:guid}"
+@using ShrinkFrame.Application
+@using ShrinkFrame.Domain
+@inject IOperationsService Operations
+@inject IWorkerStore Worker
+@inject TimeProvider Time
+
+<PageTitle>Batch details</PageTitle>
+@if(error is not null){<div class="alert alert-danger" role="alert"><strong>@errorCode</strong> @error <button class="btn btn-sm btn-outline-dark ms-2" @onclick="LoadAsync">Retry</button></div>}
+else if(view is null){<p role="status">Loading batch details…</p>}
+else {
+ <nav aria-label="Breadcrumb"><a href="batches">Batches</a> / @view.Batch.Name</nav><h1>@view.Batch.Name</h1>
+ <p><strong>Status:</strong> @view.Batch.Status · <strong>Source:</strong> @view.Batch.Source · <strong>Created:</strong> @view.Batch.CreatedAt.LocalDateTime.ToString("g") · <strong>Publication:</strong> @view.Batch.Publication</p>
+ @if(view.Jobs.Count==0){<div class="alert alert-light border">This batch has no remaining jobs.</div>}
+ @foreach(var job in view.Jobs){<article class="card mb-3"><div class="card-header d-flex justify-content-between"><span><strong>@job.FileName</strong></span><span>@job.State · @job.Publication</span></div><div class="card-body">
+   <p>Preset: @job.Preset.Value · Source: @Bytes(job.SourceBytes) · Output: @Bytes(job.OutputBytes)</p>
+   @if(job.Findings.Count>0){<h2 class="h6">Validation findings</h2><ul>@foreach(var finding in job.Findings){<li><strong>@finding.Severity — @finding.Code:</strong> @finding.Message</li>}</ul>}
+   <details><summary>Known artifacts (@job.Artifacts.Count(x=>x.Exists) present)</summary><ul>@foreach(var artifact in job.Artifacts.Where(x=>x.Exists)){<li><code>@artifact.Key.Key</code> — @Bytes(artifact.SizeBytes)@(artifact.IsPartial ? " — partial" : "")</li>}</ul></details>
+   <details class="mt-2"><summary>Bounded log summary (@job.Logs.Count entries)</summary>@if(job.Logs.Count==0){<p>No log entries.</p>}else{<ol>@foreach(var entry in job.Logs){<li><time>@entry.At.LocalDateTime.ToString("g")</time> <strong>@entry.Level / @entry.Code:</strong> @entry.Message</li>}</ol>}</details>
+   @if(job.CanRetry){<button class="btn btn-sm btn-outline-primary mt-2" @onclick="()=>RetryAsync(job.Id)">Retry job</button>}
+   @if(!job.CanDelete){<p class="small mt-2 mb-0">Deletion unavailable while this job is active or publishing.</p>}
+ </div></article>}
+}
+@code { [Parameter] public Guid Id {get;set;} private BatchOperationsView? view; private string? error,errorCode; protected override Task OnParametersSetAsync()=>LoadAsync(); private async Task LoadAsync(){try{error=errorCode=null;view=await Operations.GetBatchAsync(BatchId.From(Id));if(view is null){errorCode="batch.not_found";error="The batch was not found.";}}catch(Exception ex){errorCode="batch.load.failed";error=ex.Message;}} private async Task RetryAsync(JobId id){try{await Worker.RetryAsync(id,Time.GetUtcNow());await LoadAsync();}catch(Exception ex){errorCode="job.retry.failed";error=ex.Message;}} private static string Bytes(long? value)=>value is null?"Unknown":value<1024?$"{value:N0} B":value<1024L*1024?$"{value/1024d:N1} KB":$"{value/1024d/1024d:N1} MB"; }

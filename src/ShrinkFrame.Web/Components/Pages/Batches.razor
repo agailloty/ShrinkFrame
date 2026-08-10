@@ -1,5 +1,18 @@
 @page "/batches"
+@using ShrinkFrame.Application
+@using ShrinkFrame.Domain
+@inject IOperationsService Operations
 
-<PageTitle>Batches</PageTitle>
-<h1>Batches</h1>
-<p>Batch history will appear here.</p>
+<PageTitle>Batches</PageTitle><h1>Batches</h1>
+<div class="row g-2 mb-3" role="search">
+ <div class="col-md-4"><label class="form-label" for="history-search">Search</label><input id="history-search" class="form-control" @bind="search" @bind:event="oninput" /></div>
+ <div class="col-md-2"><label class="form-label" for="status-filter">Status</label><select id="status-filter" class="form-select" @bind="status"><option value="">All</option>@foreach(var value in Enum.GetValues<BatchStatus>()){<option>@value</option>}</select></div>
+ <div class="col-md-2"><label class="form-label" for="source-filter">Source</label><select id="source-filter" class="form-select" @bind="source"><option value="">All</option>@foreach(var value in Enum.GetValues<SourceKind>()){<option>@value</option>}</select></div>
+ <div class="col-md-2"><label class="form-label" for="from-filter">From</label><input id="from-filter" type="date" class="form-control" @bind="from" /></div>
+ <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100" @onclick="LoadAsync">Apply filters</button></div>
+</div>
+@if (error is not null) { <div class="alert alert-danger" role="alert"><strong>history.load.failed</strong> @error</div> }
+else if (items is null) { <p role="status">Loading history…</p> }
+else if (items.Count == 0) { <div class="alert alert-light border">No batches match these filters.</div> }
+else { <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Name</th><th>Status</th><th>Dates</th><th>Source</th><th>Sizes / reduction</th><th>Preset</th><th>Publication</th></tr></thead><tbody>@foreach(var item in items){<tr><td><a href="@($"batches/{item.Id.Value:D}")">@item.Name</a><div class="small">@item.JobCount job(s)</div></td><td>@item.Status</td><td>@item.CreatedAt.LocalDateTime.ToString("g")<div class="small">Updated @item.UpdatedAt.LocalDateTime.ToString("g")</div></td><td>@item.Source</td><td>@Bytes(item.SourceBytes) → @(item.OutputBytes == 0 ? "Unknown" : Bytes(item.OutputBytes))<div class="small">@(item.ReductionPercent is decimal r ? $"{r:N1}% reduction" : "Reduction unavailable")</div></td><td>@item.Preset</td><td>@item.Publication</td></tr>}</tbody></table></div> }
+@code { private IReadOnlyList<BatchHistoryItem>? items; private string? search, status, source, error; private DateTime? from; protected override Task OnInitializedAsync()=>LoadAsync(); private async Task LoadAsync(){try{error=null; BatchStatus? s=Enum.TryParse<BatchStatus>(status,out var sv)?sv:null; SourceKind? k=Enum.TryParse<SourceKind>(source,out var kv)?kv:null; DateTimeOffset? date=from.HasValue?new DateTimeOffset(from.Value):null; items=await Operations.SearchBatchesAsync(new(search,s,k,date));}catch(Exception ex){error=ex.Message;}} private static string Bytes(long value)=>value<1024L*1024?$"{value/1024d:N1} KB":$"{value/1024d/1024d:N1} MB"; }
