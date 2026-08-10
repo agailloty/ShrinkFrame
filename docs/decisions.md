@@ -52,7 +52,7 @@ Status: accepted for POC. Change a decision only through a dated entry in `imple
 - Saved keys cannot be displayed, only replaced.
 - Invalid certificates rejected by default; explicit per-connection override.
 - Dedicated streaming HTTP endpoints for large files.
-- FFmpeg bundled and pinned; non-root container with configurable UID/GID strategy.
+- FFmpeg bundled from a version-pinned Ubuntu Noble package; non-root container using the official image `app` user (UID 1654), with host volume ownership documented. Arbitrary runtime UID/GID remapping is deferred.
 - Structured console logs plus per-job summary.
 - HTTP health check and detailed UI state.
 - MIT license and GitHub Actions for build, domain tests, and Docker build.

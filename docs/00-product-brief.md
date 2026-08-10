@@ -15,7 +15,7 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 
 1. Manage multiple Immich connections: add, edit, test, disable, delete, and select a default.
 2. Create a named batch from either browser uploads or one Immich instance.
-3. Browse Immich videos with explicit pagination and filters for taken period, size, album, and sort order.
+3. Browse Immich videos with explicit pagination and filters for taken period and album, supported server sort orders, and a clearly page-scoped size refinement when byte size is available. Immich 3.1 has no server-global byte-size metadata-search filter.
 4. Preserve selection when changing pages.
 5. Upload multiple browser files with per-file progress; interrupted uploads restart from zero.
 6. Probe all inputs with ffprobe and reject non-video content.

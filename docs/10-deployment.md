@@ -14,6 +14,23 @@ The final runtime image:
 - exposes a health endpoint;
 - uses an init or correct process behavior so FFmpeg children receive termination.
 
+## Audited image and FFmpeg policy
+
+Audit date: 2026-08-10.
+
+.NET 10 official Linux container tags use Ubuntu 24.04 (`noble`); Microsoft explicitly does not publish Debian images for .NET 10. Use matching Ubuntu-based stages, not the unqualified moving tags:
+
+- build stage: `mcr.microsoft.com/dotnet/sdk:10.0.302-noble`;
+- runtime stage: `mcr.microsoft.com/dotnet/aspnet:10.0.10-noble`;
+- record and pin each multi-architecture manifest digest in the Dockerfile at Prompt 15, after Docker Engine is available to resolve the registry manifests;
+- update SDK/runtime servicing versions together through a reviewed dependency update, rerun the full build/media smoke tests, and never select a preview tag.
+
+The Noble archive provides `ffmpeg` and `ffprobe` together in package `ffmpeg` version `7:6.1.1-3ubuntu5`, including libx264 support through its packaged dependencies. Prompt 15 must install that exact Debian package version (`apt-get install ffmpeg=7:6.1.1-3ubuntu5`), verify `ffmpeg -version`, `ffprobe -version`, and the presence of encoder `libx264`, then clean apt lists. If that exact version is no longer resolvable, do not silently float: update this policy and the implementation log to a reviewed Noble security/update version and repeat media compatibility tests.
+
+The official non-chiseled Noble runtime is required because FFmpeg is installed with apt. Run the finished application as the image's non-root `app` user (UID 1654). The POC host must pre-create/chown the mounted data directory for UID 1654; arbitrary runtime UID/GID remapping is deferred because it conflicts with a strictly non-root startup unless an entrypoint briefly runs privileged.
+
+Primary references accessed 2026-08-10: <https://github.com/dotnet/dotnet-docker/issues/6860>, <https://github.com/dotnet/dotnet-docker/blob/main/README.sdk.md>, <https://github.com/dotnet/dotnet-docker/blob/main/README.aspnet.md>, and <https://packages.ubuntu.com/noble/ffmpeg>.
+
 ## Configuration
 
 Configuration uses environment variables with validated options. At minimum:
