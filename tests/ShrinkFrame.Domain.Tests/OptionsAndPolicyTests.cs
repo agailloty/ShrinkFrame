@@ -4,6 +4,41 @@ namespace ShrinkFrame.Domain.Tests;
 public sealed class OptionsAndPolicyTests
 {
     [TestMethod]
+    public void OutputValidationAcceptsDurationBoundaryPortraitAndNoUpscale()
+    {
+        var captured = new DateTimeOffset(2024, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        var input = new VideoValidationSnapshot("mov", TimeSpan.FromSeconds(200), 1080, 1920, "hevc", captured, 90);
+        var output = new VideoValidationSnapshot("mov,mp4,m4a,3gp,3g2,mj2", TimeSpan.FromSeconds(201), 720, 1280, "h264", captured, 90);
+        var findings = OutputValidationPolicy.Validate(input, output,
+            new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.P1440, AudioMode.Auto, "_V"));
+        Assert.IsFalse(findings.Any(x => x.IsBlocking));
+    }
+
+    [TestMethod]
+    public void OutputValidationBlocksContainerDurationUpscaleCaptureDateAndRotation()
+    {
+        var captured = new DateTimeOffset(2024, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        var input = new VideoValidationSnapshot("mov", TimeSpan.FromSeconds(10), 640, 360, "h264", captured, 90);
+        var output = new VideoValidationSnapshot("matroska", TimeSpan.FromSeconds(11.001), 642, 362, "vp9", null, 0);
+        var codes = OutputValidationPolicy.Validate(input, output,
+            new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, "_V"))
+            .Where(x => x.IsBlocking).Select(x => x.Code).ToHashSet();
+        foreach (var code in new[] { "validation.container", "validation.codec", "validation.duration",
+            "validation.dimensions", "validation.capture_date.lost", "validation.rotation.changed" })
+            Assert.Contains(code, codes);
+    }
+
+    [TestMethod]
+    public void OtherMetadataLossWarnsWithoutBlocking()
+    {
+        var input = new VideoValidationSnapshot("mp4", TimeSpan.FromSeconds(3), 640, 360, "h264", null, 0, 1, 2, true);
+        var output = new VideoValidationSnapshot("mp4", TimeSpan.FromSeconds(3), 640, 360, "h264", null, 0);
+        var findings = OutputValidationPolicy.Validate(input, output,
+            new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, "_V"));
+        Assert.HasCount(2, findings);
+        Assert.IsTrue(findings.All(x => x.Severity == FindingSeverity.Warning));
+    }
+    [TestMethod]
     [DataRow(18, false)] [DataRow(30, false)] [DataRow(31, true)] [DataRow(36, true)]
     public void Crf_boundaries_are_valid(int crf, bool warning)
         => Assert.AreEqual(warning, Options(crf).HasQualityWarning);

@@ -352,3 +352,28 @@ Summary:
 Decision deviations:
 
 - None. Immich source byte sizes remain unknown when Immich does not return them, and the summary labels those values as unknown rather than inventing an estimate.
+## 2026-08-10 — Prompt 11: validation and result delivery
+
+Summary:
+
+- Added a domain output-validation policy for MP4/H.264, the greater-of-one-second-or-0.5-percent duration tolerance, positive/even/no-upscale dimensions within the selected maximum, authoritative capture date, effective rotation, and warning-only location/audio metadata loss.
+- Persisted input and output ffprobe JSON snapshots as bounded work-storage artifacts. Validation failures retain their exact blocking findings, remove the partial video, and never finalize it; warning-only valid outputs finalize atomically and classify by byte size as `Ready` or retained `NotBeneficial`.
+- Added application result delivery with safe generated MP4 download names, artifact ownership/existence checks, persistent explicit `NotBeneficial` publication authorization, and recompression as a distinct queued job/options snapshot that reuses the retained source without altering the prior output or history.
+- Added an individual physical-file HTTP endpoint with `video/mp4`, framework-generated content length and Content-Disposition, and range processing. Blazor renders links and controls only; it never carries video bytes. No ZIP or bulk download was added.
+- Expanded processing/results UI with persisted progress refresh, findings, individual downloads, recompression, explicit later-publication force, and expandable FPS/bitrate/bounded-log details.
+
+Decision deviations:
+
+- None. Publication transport remains Prompt 12; this milestone only persists the explicit force prerequisite for a later `NotBeneficial` publication.
+
+Framework contract verification:
+
+- Verified on 2026-08-10 against Microsoft Learn for ASP.NET Core 10 (`Microsoft.AspNetCore.App.Ref v10.0.0`) that `Results.File(string path, ..., fileDownloadName, ..., enableRangeProcessing: true)` writes a physical file, uses the supplied download name for Content-Disposition, and supports satisfiable/unsatisfiable ranges with HTTP 206/416: <https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.results.file?view=aspnetcore-10.0>.
+
+Verification performed:
+
+- Added automated domain coverage for the exact duration boundary, portrait maximum dimensions, no-upscale rejection, MP4/H.264 enforcement, warning-only metadata loss, blocking capture-date/rotation loss, and equal/larger `NotBeneficial` classification.
+- Added persistence/application coverage proving recompression creates a distinct queued job and option snapshot, retains the original result artifact, and reuses the retained source artifact.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 203 tests, 0 failed, 0 skipped (167 Domain and 36 Infrastructure).
+- `git diff --check` — completed with no whitespace errors before this log entry.

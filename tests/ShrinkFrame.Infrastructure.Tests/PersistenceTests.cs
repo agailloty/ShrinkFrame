@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ShrinkFrame.Application;
 using ShrinkFrame.Domain;
 using ShrinkFrame.Infrastructure.Persistence;
+using ShrinkFrame.Infrastructure.Storage;
 
 [assembly: DoNotParallelize]
 
@@ -230,6 +231,42 @@ public sealed class PersistenceTests
             await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => wizard.SaveSettingsAsync(batchId,
                 new("Too late", new("balanced"), BuiltInPresets.Snapshot(new("balanced")), new Dictionary<JobId, PresetId>())));
         }
+    }
+
+    [TestMethod]
+    public async Task RecompressionCreatesDistinctJobAndPreservesPriorResult()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        var options = BuiltInPresets.Snapshot(new("balanced"));
+        var batch = new CompressionBatch(BatchId.New(), "Completed", SourceKind.BrowserUpload, null, options, now);
+        var source = VideoSourceRef.Browser("upload-1");
+        var original = new CompressionJob(JobId.New(), batch.Id, source, new("balanced"), options, now);
+        original.TransitionTo(JobState.Acquiring, now); original.TransitionTo(JobState.Probing, now);
+        var sourceArtifact = new ArtifactRef($"batches/{batch.Id.Value:N}/jobs/{original.Id.Value:N}/source/input.bin");
+        original.RecordProbe(new VideoMetadata("portrait.mp4", "video/mp4", 1000, TimeSpan.FromSeconds(3),
+            720, 1280, "h264", ["aac"], now, 90), sourceArtifact);
+        original.TransitionTo(JobState.Queued, now); original.TransitionTo(JobState.Compressing, now);
+        original.TransitionTo(JobState.Validating, now);
+        var output = new ArtifactRef($"batches/{batch.Id.Value:N}/jobs/{original.Id.Value:N}/output/result.mp4");
+        original.CompleteValidation(500, output, [], now);
+        batch.AddJob(original.Id, source, now); batch.Confirm(now); batch.Complete(now);
+
+        await using var db = await factory.CreateDbContextAsync();
+        var batches = new BatchRepository(db); var jobs = new CompressionJobRepository(db);
+        await batches.AddAsync(batch); await jobs.AddAsync(original);
+        var storage = new LocalWorkStorage(new WorkStorageOptions { WorkRoot = Path.Combine(Path.GetTempPath(), $"sf-{Guid.NewGuid():N}") });
+        var service = new ResultDelivery(jobs, storage, new WorkerStore(db), new FixedTime(now.AddMinutes(1)));
+        var smaller = new CompressionOptions(30, EncoderPreset.Slow, MaximumResolution.P720, AudioMode.Aac, "_small");
+        var newId = await service.RecompressAsync(original.Id, new(new("smallest-practical"), smaller));
+
+        var stored = await jobs.ListByBatchAsync(batch.Id);
+        Assert.HasCount(2, stored);
+        Assert.AreEqual(output, stored.Single(x => x.Value.Id == original.Id).Value.OutputArtifact);
+        var recompression = stored.Single(x => x.Value.Id == newId).Value;
+        Assert.AreEqual(JobState.Queued, recompression.State);
+        Assert.AreEqual(smaller, recompression.EffectiveOptions);
+        Assert.AreEqual(sourceArtifact, recompression.SourceArtifact);
+        Assert.IsNull(recompression.OutputArtifact);
     }
 
     private async Task<(JobId Id, long Version)> AddQueuedBrowserJobAsync()

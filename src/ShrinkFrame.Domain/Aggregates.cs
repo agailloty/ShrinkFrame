@@ -219,6 +219,13 @@ public sealed class CompressionJob
         State = MediaPolicies.ClassifyValidatedOutput(OriginalMetadata.SizeBytes, outputBytes, findings);
         OutputArtifact = output; UpdatedAt = now;
     }
+    public void RejectValidation(IEnumerable<ValidationFinding> validationFindings, DateTimeOffset now)
+    {
+        if (State != JobState.Validating) throw new DomainException(DomainErrors.InvalidJobTransition, "Job must be validating.");
+        findings.Clear(); findings.AddRange(validationFindings);
+        if (!findings.Any(x => x.IsBlocking)) throw new DomainException(DomainErrors.BlockingFindings, "Rejected validation requires a blocking finding.");
+        OutputArtifact = null; State = JobState.Failed; UpdatedAt = now;
+    }
     public void AuthorizeNotBeneficialPublication()
     {
         if (State != JobState.NotBeneficial) throw new DomainException(DomainErrors.InvalidPublicationTransition, "Override applies only to NotBeneficial results.");

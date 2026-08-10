@@ -44,12 +44,48 @@ public static class MediaPolicies
 
     public static string BuildOutputFileName(string sourceFileName, string suffix)
     {
-        if (string.IsNullOrWhiteSpace(sourceFileName) || sourceFileName.IndexOfAny(['/', '\\', ':']) >= 0 || sourceFileName is "." or "..")
+        if (string.IsNullOrWhiteSpace(sourceFileName) || sourceFileName.IndexOfAny(['/', '\\', ':']) >= 0 ||
+            sourceFileName.Any(char.IsControl) || sourceFileName is "." or "..")
             throw new DomainException(DomainErrors.InvalidText, "Source filename must be a safe leaf name.");
         _ = new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, suffix);
         var dot = sourceFileName.LastIndexOf('.');
         var stem = dot > 0 ? sourceFileName[..dot] : sourceFileName;
         return $"{stem}{suffix}.mp4";
+    }
+}
+
+public static class OutputValidationPolicy
+{
+    public static IReadOnlyList<ValidationFinding> Validate(
+        VideoValidationSnapshot input, VideoValidationSnapshot output, CompressionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(options);
+        var findings = new List<ValidationFinding>();
+        var formats = output.Container.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (!formats.Contains("mp4", StringComparer.OrdinalIgnoreCase))
+            findings.Add(new("validation.container", FindingSeverity.Blocking, "Output container is not MP4."));
+        if (!output.VideoCodec.Equals("h264", StringComparison.OrdinalIgnoreCase))
+            findings.Add(new("validation.codec", FindingSeverity.Blocking, "Output video codec is not H.264."));
+        if (!MediaPolicies.IsDurationWithinTolerance(input.Duration, output.Duration))
+            findings.Add(new("validation.duration", FindingSeverity.Blocking, "Output duration is outside tolerance."));
+
+        var target = MediaPolicies.TargetDimensions(input.Width, input.Height, options.MaximumResolution);
+        if (output.Width <= 0 || output.Height <= 0 || output.Width % 2 != 0 || output.Height % 2 != 0 ||
+            output.Width > input.Width || output.Height > input.Height || output.Width > target.Width || output.Height > target.Height)
+            findings.Add(new("validation.dimensions", FindingSeverity.Blocking, "Output dimensions are invalid, odd, or upscaled."));
+        if (input.CaptureTime.HasValue && !output.CaptureTime.HasValue)
+            findings.Add(ValidationFinding.CaptureDateLost());
+        else if (input.CaptureTime.HasValue && output.CaptureTime != input.CaptureTime)
+            findings.Add(ValidationFinding.CaptureDateChanged());
+        if (output.EffectiveRotation != input.EffectiveRotation)
+            findings.Add(ValidationFinding.RotationChanged());
+        if ((input.Latitude.HasValue || input.Longitude.HasValue) && (!output.Latitude.HasValue || !output.Longitude.HasValue))
+            findings.Add(new("validation.metadata.location_lost", FindingSeverity.Warning, "Location metadata was not retained."));
+        if (input.HasAudio && !output.HasAudio)
+            findings.Add(new("validation.metadata.audio_lost", FindingSeverity.Warning, "The source audio stream was not retained."));
+        return findings;
     }
 }
 

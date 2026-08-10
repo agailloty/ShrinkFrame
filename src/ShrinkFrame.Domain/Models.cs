@@ -74,8 +74,14 @@ public sealed record ValidationFinding(string Code, FindingSeverity Severity, st
 {
     public bool IsBlocking => Severity == FindingSeverity.Blocking;
     public static ValidationFinding CaptureDateLost() => new("validation.capture_date.lost", FindingSeverity.Blocking, "Capture date was not retained.");
+    public static ValidationFinding CaptureDateChanged() => new("validation.capture_date.changed", FindingSeverity.Blocking, "Capture date changed.");
     public static ValidationFinding RotationChanged() => new("validation.rotation.changed", FindingSeverity.Blocking, "Effective rotation changed.");
 }
+
+public sealed record VideoValidationSnapshot(
+    string Container, TimeSpan Duration, int Width, int Height, string VideoCodec,
+    DateTimeOffset? CaptureTime, int EffectiveRotation, double? Latitude = null,
+    double? Longitude = null, bool HasAudio = false);
 
 public sealed record TransferProgress(long BytesTransferred, long? TotalBytes);
 public sealed record CompressionProgress(decimal? Percentage, TimeSpan Processed, decimal? Speed, TimeSpan Elapsed,

@@ -10,6 +10,7 @@ using ShrinkFrame.Infrastructure.Immich;
 using ShrinkFrame.Web.BrowserUploads;
 using ShrinkFrame.Web.Immich;
 using ShrinkFrame.Infrastructure.Worker;
+using ShrinkFrame.Web.ResultDelivery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,7 @@ builder.Services.AddOptions<BrowserUploadOptions>()
     .ValidateOnStart();
 builder.Services.AddScoped<BrowserUploadService>();
 builder.Services.AddScoped<IBatchWizard, BatchWizard>();
+builder.Services.AddScoped<IResultDelivery, ResultDelivery>();
 builder.Services.AddScoped<SameOriginFilter>();
 builder.Services.AddShrinkFrameSqlite(
     builder.Configuration.GetConnectionString("ShrinkFrame")
@@ -90,6 +92,7 @@ app.MapGet("/health", (IMediaToolStatus media) => media.Current.Available
     : Results.Json(new { status = "Unhealthy", media = media.Current }, statusCode: 503));
 app.MapBrowserUploads();
 app.MapImmichBrowser();
+app.MapResultDownloads();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

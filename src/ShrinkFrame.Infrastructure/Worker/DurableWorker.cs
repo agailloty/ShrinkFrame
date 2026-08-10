@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -134,6 +135,7 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
             await queue.AppendLogAsync(job.Id, new(time.GetUtcNow(), "Information", "compression.started", "Compression started."), shutdown);
             var paths = services.GetRequiredService<IArtifactPathResolver>(); var storage = services.GetRequiredService<IWorkStorage>();
             var inputPath = paths.ResolveExisting(job.SourceArtifact); var inputProbe = await services.GetRequiredService<IMediaProbe>().ProbeAsync(inputPath, cancellation.Token);
+            await SaveProbeSnapshotAsync(storage, job, ArtifactKind.InputProbe, inputProbe.RawJson, cancellation.Token);
             var video = inputProbe.PrimaryVideo; var audio = inputProbe.PrimaryAudio; var allocation = storage.Allocate(job.BatchId, job.Id, ArtifactKind.Output);
             var request = new MediaCompressionRequest(inputPath, ResolvePartialPath(paths, allocation.Partial), inputProbe.Duration,
                 video.Width!.Value, video.Height!.Value, inputProbe.EffectiveRotation, video.Index, audio?.Index, audio?.CodecName, job.EffectiveOptions, video.IsHdr);
@@ -144,8 +146,17 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
             if (!result.Succeeded) throw new InvalidOperationException($"FFmpeg failed: {result.DiagnosticTail}");
             job.TransitionTo(JobState.Validating, time.GetUtcNow()); version = await services.GetRequiredService<ICompressionJobRepository>().UpdateAsync(job, version, shutdown);
             var outputProbe = await services.GetRequiredService<IMediaProbe>().ProbeAsync(request.PartialOutputPath, cancellation.Token);
-            var outputVideo = outputProbe.PrimaryVideo; var findings = Validate(job.OriginalMetadata, inputProbe, outputProbe, outputVideo, job.EffectiveOptions);
-            if (findings.Any(x => x.IsBlocking)) throw new InvalidDataException(string.Join(" ", findings.Select(x => x.Message)));
+            await SaveProbeSnapshotAsync(storage, job, ArtifactKind.OutputProbe, outputProbe.RawJson, cancellation.Token);
+            var findings = OutputValidationPolicy.Validate(Snapshot(inputProbe, job.OriginalMetadata), Snapshot(outputProbe), job.EffectiveOptions);
+            if (findings.Any(x => x.IsBlocking))
+            {
+                job.RejectValidation(findings, time.GetUtcNow());
+                await services.GetRequiredService<ICompressionJobRepository>().UpdateAsync(job, version, shutdown);
+                await storage.DeleteKnownAsync([new(job.BatchId, job.Id, allocation.Partial)], shutdown);
+                await queue.AppendLogAsync(job.Id, new(time.GetUtcNow(), "Error", "validation.failed",
+                    string.Join(" ", findings.Where(x => x.IsBlocking).Select(x => $"{x.Code}: {x.Message}"))), shutdown);
+                return;
+            }
             var outputBytes = new FileInfo(request.PartialOutputPath).Length;
             await storage.FinalizeAsync(allocation.Partial, allocation.Final, cancellation.Token);
             job.CompleteValidation(outputBytes, allocation.Final, findings, time.GetUtcNow()); await services.GetRequiredService<ICompressionJobRepository>().UpdateAsync(job, version, shutdown);
@@ -162,16 +173,29 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
         }
     }
 
-    private static List<ValidationFinding> Validate(VideoMetadata metadata, MediaProbeResult input, MediaProbeResult output, MediaStreamInfo video, CompressionOptions options)
+    private static VideoValidationSnapshot Snapshot(MediaProbeResult probe, VideoMetadata? authoritative = null)
     {
-        var findings = new List<ValidationFinding>(); var target = MediaPolicies.TargetDimensions(metadata.Width, metadata.Height, options.MaximumResolution);
-        if (!video.CodecName.Equals("h264", StringComparison.OrdinalIgnoreCase)) findings.Add(new("validation.codec", FindingSeverity.Blocking, "Output video codec is not H.264."));
-        if (!MediaPolicies.IsDurationWithinTolerance(input.Duration, output.Duration)) findings.Add(new("validation.duration", FindingSeverity.Blocking, "Output duration is outside tolerance."));
-        if (video.Width is null || video.Height is null || video.Width <= 0 || video.Height <= 0 || video.Width % 2 != 0 || video.Height % 2 != 0 || video.Width > target.Width || video.Height > target.Height)
-            findings.Add(new("validation.dimensions", FindingSeverity.Blocking, "Output dimensions are invalid."));
-        if (output.CaptureTime is null && input.CaptureTime is not null) findings.Add(ValidationFinding.CaptureDateLost());
-        if (output.EffectiveRotation != input.EffectiveRotation) findings.Add(ValidationFinding.RotationChanged());
-        return findings;
+        var video = probe.PrimaryVideo;
+        return new(probe.Container, probe.Duration, video.Width ?? 0, video.Height ?? 0, video.CodecName,
+            authoritative?.CaptureTime ?? probe.CaptureTime, authoritative?.EffectiveRotation ?? probe.EffectiveRotation,
+            authoritative?.Latitude ?? probe.Latitude, authoritative?.Longitude ?? probe.Longitude,
+            authoritative is null ? probe.PrimaryAudio is not null : authoritative.AudioCodecs.Count > 0);
+    }
+
+    private static async Task SaveProbeSnapshotAsync(IWorkStorage storage, CompressionJob job,
+        ArtifactKind kind, string json, CancellationToken token)
+    {
+        var allocation = storage.Allocate(job.BatchId, job.Id, kind);
+        await storage.DeleteKnownAsync([
+            new(job.BatchId, job.Id, allocation.Partial),
+            new(job.BatchId, job.Id, allocation.Final)], token);
+        await using (var stream = await storage.OpenCreateNewAsync(allocation.Partial, token))
+        {
+            var bytes = Encoding.UTF8.GetBytes(json);
+            await stream.WriteAsync(bytes, token);
+            await stream.FlushAsync(token);
+        }
+        await storage.FinalizeAsync(allocation.Partial, allocation.Final, token);
     }
 
     private string ResolvePartialPath(IArtifactPathResolver paths, ArtifactRef partial)
