@@ -17,6 +17,14 @@ Official documentation:
 
 Contract audit: 2026-08-10. The endpoint pages below reported the v3 contract and `Status: Stable` unless noted otherwise. Immich's online documentation tracks the current API rather than a permanently frozen 3.1 schema, so implementation must still probe a connected 3.1.x server and test against its generated OpenAPI contract.
 
+Prompt 07 implementation verification (2026-08-10) uses exactly `GET /api/server/ping`,
+`GET /api/server/version`, and authenticated `GET /api/api-keys/me`, with the API key only in the
+`x-api-key` header. DTO parsing is limited to ping `res`, numeric version `major`/`minor`/`patch`,
+and current-key `id`/`name`/`permissions`. These contracts were verified against the official v3.1
+endpoint/model pages listed below. No live Immich test instance was available in the development
+environment, so an exact deployed patch version has not been claimed; live 3.1.x verification remains
+a deployment check.
+
 Every path below is relative to `{BaseUrl}/api`. Normalize the configured base URL so users may enter either the external site root or an API-root URL without producing `/api/api`.
 
 ## Authentication and required permissions

@@ -13,6 +13,9 @@ internal sealed class ImmichConnectionEntity
     public required string Compatibility { get; set; }
     public string? LastTestError { get; set; }
     public byte[]? EncryptedApiKey { get; set; }
+    public string? LastTestKeyId { get; set; }
+    public string? LastTestKeyName { get; set; }
+    public string? LastTestPermissions { get; set; }
 }
 
 internal sealed class BatchEntity

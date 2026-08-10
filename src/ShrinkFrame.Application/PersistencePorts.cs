@@ -28,6 +28,10 @@ public interface IImmichConnectionRepository
     Task AddAsync(StoredImmichConnection connection, CancellationToken cancellationToken = default);
     Task<StoredImmichConnection?> GetAsync(ConnectionId id, CancellationToken cancellationToken = default);
     Task UpdateAsync(StoredImmichConnection connection, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StoredImmichConnection>> ListAsync(CancellationToken cancellationToken = default);
+    Task SetDefaultAsync(ConnectionId id, CancellationToken cancellationToken = default);
+    Task<bool> IsRequiredByActiveWorkAsync(ConnectionId id, CancellationToken cancellationToken = default);
+    Task DeleteAsync(ConnectionId id, CancellationToken cancellationToken = default);
 }
 
 public interface IBatchRepository

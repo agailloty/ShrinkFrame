@@ -1,5 +1,110 @@
 @page "/connections"
+@rendermode InteractiveServer
+@inject IImmichConnectionManager Manager
 
 <PageTitle>Connections</PageTitle>
-<h1>Connections</h1>
-<p>Immich connection management will be added in a later milestone.</p>
+<h1>Immich connections</h1>
+<p class="text-muted">API keys are encrypted at rest and are never shown after saving.</p>
+
+@if (message is not null)
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success")" role="alert">@message</div>
+}
+
+<EditForm Model="model" OnValidSubmit="SaveAsync" class="card card-body mb-4">
+    <DataAnnotationsValidator />
+    <h2 class="h5">@(editingId.HasValue ? "Edit connection" : "Add connection")</h2>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="connection-name">Name</label><InputText id="connection-name" class="form-control" @bind-Value="model.DisplayName" /></div>
+        <div class="col-md-5"><label class="form-label" for="connection-url">Immich URL</label><InputText id="connection-url" class="form-control" @bind-Value="model.BaseUrl" /></div>
+        <div class="col-md-3"><label class="form-label" for="connection-key">@(editingId.HasValue ? "Replace API key" : "API key")</label><InputText id="connection-key" type="password" autocomplete="new-password" class="form-control" @bind-Value="model.ApiKey" /><div class="form-text">@(editingId.HasValue ? "Leave empty to keep the saved key." : "Required; never returned by the server.")</div></div>
+    </div>
+    <div class="form-check mt-3"><InputCheckbox id="invalid-cert" class="form-check-input" @bind-Value="model.AllowInvalidCertificate" /><label class="form-check-label text-danger" for="invalid-cert">Allow an invalid TLS certificate for this connection (unsafe; explicit override)</label></div>
+    <div class="form-check"><InputCheckbox id="enabled" class="form-check-input" @bind-Value="model.Enabled" /><label class="form-check-label" for="enabled">Enabled</label></div>
+    <div class="form-check"><InputCheckbox id="default" class="form-check-input" @bind-Value="model.IsDefault" /><label class="form-check-label" for="default">Make default</label></div>
+    <div class="mt-3"><button class="btn btn-primary" disabled="@busy">Save</button>@if (editingId.HasValue) { <button type="button" class="btn btn-link" @onclick="CancelEdit">Cancel</button> }</div>
+</EditForm>
+
+@if (connections.Count == 0)
+{
+    <p>No Immich connections are configured.</p>
+}
+else
+{
+    <div class="row g-3">
+    @foreach (var connection in connections)
+    {
+        <div class="col-12"><section class="card card-body" aria-label="@connection.DisplayName">
+            <div class="d-flex justify-content-between gap-3"><div><h2 class="h5 mb-1">@connection.DisplayName @if (connection.IsDefault) { <span class="badge text-bg-primary">Default</span> } @if (!connection.Enabled) { <span class="badge text-bg-secondary">Disabled</span> }</h2><div><code>@connection.BaseUrl</code></div></div><span>@connection.Compatibility</span></div>
+            @if (connection.AllowInvalidCertificate) { <div class="alert alert-warning py-2 mt-3 mb-0">Certificate validation is disabled for this connection.</div> }
+            <dl class="row mt-3 mb-2">
+                <dt class="col-sm-3">Saved key</dt><dd class="col-sm-9">@(connection.HasApiKey ? "Yes (replace-only)" : "No")</dd>
+                <dt class="col-sm-3">Version</dt><dd class="col-sm-9">@(connection.Version ?? "Not tested")</dd>
+                <dt class="col-sm-3">API key identity</dt><dd class="col-sm-9">@(connection.KeyName is null ? "Not available" : $"{connection.KeyName} ({connection.KeyId})")</dd>
+                <dt class="col-sm-3">Source capability</dt><dd class="col-sm-9">@(connection.Capabilities.CanUseAsSource ? "Available" : $"Unavailable — missing {string.Join(", ", connection.Capabilities.MissingSourcePermissions)}")</dd>
+                <dt class="col-sm-3">Publish capability</dt><dd class="col-sm-9">@(connection.Capabilities.CanPublish ? "Available" : $"Unavailable — missing {string.Join(", ", connection.Capabilities.MissingPublishPermissions)}")</dd>
+            </dl>
+            @if (connection.ErrorMessage is not null) { <div class="alert alert-danger py-2"><strong>@connection.ErrorCode</strong>: @connection.ErrorMessage</div> }
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-outline-primary btn-sm" disabled="@busy" @onclick="() => TestAsync(connection.Id)">Test</button>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="() => Edit(connection)">Edit / replace key</button>
+                <button class="btn btn-outline-secondary btn-sm" disabled="@busy" @onclick="() => ToggleAsync(connection)">@(connection.Enabled ? "Disable" : "Enable")</button>
+                @if (!connection.IsDefault && connection.Enabled) { <button class="btn btn-outline-secondary btn-sm" disabled="@busy" @onclick="() => DefaultAsync(connection.Id)">Make default</button> }
+                <button class="btn btn-outline-danger btn-sm" disabled="@busy" @onclick="() => DeleteAsync(connection.Id)">Delete</button>
+            </div>
+        </section></div>
+    }
+    </div>
+}
+
+@code {
+    private readonly ConnectionForm model = new();
+    private IReadOnlyList<ImmichConnectionView> connections = [];
+    private ConnectionId? editingId;
+    private bool busy;
+    private bool isError;
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task SaveAsync() => await RunAsync(async () =>
+    {
+        var input = new ImmichConnectionInput(model.DisplayName, model.BaseUrl, model.ApiKey, model.AllowInvalidCertificate, model.Enabled, model.IsDefault);
+        if (editingId.HasValue) await Manager.UpdateAsync(editingId.Value, input); else await Manager.AddAsync(input);
+        model.ApiKey = null;
+        message = "Connection saved. Test it to verify compatibility and permissions.";
+        CancelEdit();
+    });
+
+    private void Edit(ImmichConnectionView value)
+    {
+        editingId = value.Id; model.DisplayName = value.DisplayName; model.BaseUrl = value.BaseUrl; model.ApiKey = null;
+        model.AllowInvalidCertificate = value.AllowInvalidCertificate; model.Enabled = value.Enabled; model.IsDefault = value.IsDefault;
+        message = null;
+    }
+    private void CancelEdit() { editingId = null; model.Reset(); }
+    private Task TestAsync(ConnectionId id) => RunAsync(async () => { await Manager.TestAsync(id); message = "Connection test completed."; });
+    private Task DefaultAsync(ConnectionId id) => RunAsync(async () => { await Manager.SetDefaultAsync(id); message = "Default connection changed."; });
+    private Task ToggleAsync(ImmichConnectionView value) => RunAsync(async () =>
+    {
+        await Manager.UpdateAsync(value.Id, new(value.DisplayName, value.BaseUrl, null, value.AllowInvalidCertificate, !value.Enabled, value.IsDefault && !value.Enabled));
+        message = value.Enabled ? "Connection disabled." : "Connection enabled.";
+    });
+    private Task DeleteAsync(ConnectionId id) => RunAsync(async () => { await Manager.DeleteAsync(id); message = "Connection deleted."; });
+    private async Task RunAsync(Func<Task> action)
+    {
+        busy = true; isError = false; message = null;
+        try { await action(); }
+        catch (ImmichConnectionException exception) { isError = true; message = $"{exception.Code}: {exception.Message}"; }
+        catch (Exception) { isError = true; message = "connection.operation.failed: The connection operation failed."; }
+        finally { busy = false; model.ApiKey = null; await ReloadAsync(); }
+    }
+    private async Task ReloadAsync() => connections = await Manager.ListAsync();
+
+    private sealed class ConnectionForm
+    {
+        public string DisplayName { get; set; } = ""; public string BaseUrl { get; set; } = ""; public string? ApiKey { get; set; }
+        public bool AllowInvalidCertificate { get; set; } public bool Enabled { get; set; } = true; public bool IsDefault { get; set; }
+        public void Reset() { DisplayName = ""; BaseUrl = ""; ApiKey = null; AllowInvalidCertificate = false; Enabled = true; IsDefault = false; }
+    }
+}

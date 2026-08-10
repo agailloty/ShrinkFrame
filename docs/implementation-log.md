@@ -1,5 +1,51 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 07: encrypted Immich connection management
+
+Summary:
+
+- Added multi-instance connection add/edit/test/enable/disable/delete/default workflows and a complete
+  Interactive Server Connections UI. Saved keys are replace-only and connection views expose only a
+  `HasApiKey` flag plus non-secret test metadata.
+- Protected API keys with a purpose-scoped ASP.NET Core Data Protector backed by the configured persisted
+  key ring. Temporary UTF-8 buffers are zeroed, decrypted values stay inside the probe call, and key-ring
+  loss returns `connection.api_key.unavailable` with recovery guidance.
+- Added strict site-root or `/api` URL normalization, HTTP(S)-only and no-credential validation, bounded
+  timeout/response policies, disabled automatic redirects, same-origin redirect enforcement, and an
+  explicit per-connection invalid-certificate override with persistent UI warnings.
+- Added handwritten ping, server-version, and current-key operations; v3.1 compatibility evaluation;
+  API-key identity and permission persistence; core source, optional source-feature, and publication
+  permission classification.
+- Added a migration for non-secret connection test details and guarded deletion when a nonterminal Immich
+  batch still references the connection, returning guidance to disable it instead.
+
+Decision deviations:
+
+- None. A live Immich instance was not available, so no deployed patch version is claimed; the exact
+  official v3.1 contracts implemented are recorded in `docs/04-immich-integration.md` and live-instance
+  scenarios remain a deployment-host check.
+
+Official contracts verified 2026-08-10:
+
+- Immich stable v3.1 ping, version, and current API key pages already inventoried in
+  `docs/04-immich-integration.md`; implemented paths and response fields match that audit exactly.
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln` — completed successfully.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 163 Domain and
+  32 Infrastructure tests.
+- Automated connection checks cover accepted/malformed/credential-bearing URLs, encrypted-envelope and
+  response redaction, persisted-key-ring restart, changed-key-ring recovery error, permission capability
+  classification, and active-work deletion rejection.
+
+Manual follow-up:
+
+- Exercise valid, invalid-key, missing-permission, unreachable, invalid-certificate opt-in, and restart
+  scenarios against the deployment's supported Immich 3.1.x instance. Record its exact patch version and
+  generated OpenAPI differences, if any, before treating that instance as production-ready.
+
 ## 2026-08-10 — Prompt 06: browser streaming upload
 
 Summary:

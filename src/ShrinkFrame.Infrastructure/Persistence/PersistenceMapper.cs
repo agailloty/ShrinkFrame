@@ -13,12 +13,15 @@ internal static class PersistenceMapper
         LastTestedAt = stored.Connection.LastTestedAt, DetectedVersion = stored.Connection.DetectedVersion,
         Compatibility = stored.Connection.Compatibility.ToString(), LastTestError = stored.Connection.LastTestError,
         EncryptedApiKey = stored.ApiKeyEnvelope?.Payload.ToArray(),
+        LastTestKeyId = stored.Connection.LastTestKeyId, LastTestKeyName = stored.Connection.LastTestKeyName,
+        LastTestPermissions = stored.Connection.LastTestPermissions,
     };
 
     internal static StoredImmichConnection ToDomain(ImmichConnectionEntity entity) => new(
         ImmichConnection.Restore(ConnectionId.From(entity.Id), entity.DisplayName, new Uri(entity.BaseUrl),
             entity.AllowInvalidCertificate, entity.Enabled, entity.IsDefault, entity.LastTestedAt,
-            entity.DetectedVersion, Parse<CompatibilityResult>(entity.Compatibility), entity.LastTestError),
+            entity.DetectedVersion, Parse<CompatibilityResult>(entity.Compatibility), entity.LastTestError,
+            entity.LastTestKeyId, entity.LastTestKeyName, entity.LastTestPermissions),
         entity.EncryptedApiKey is null ? null : new EncryptedSecretEnvelope(entity.EncryptedApiKey));
 
     internal static BatchEntity ToEntity(CompressionBatch batch) => new()

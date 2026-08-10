@@ -6,6 +6,10 @@ namespace ShrinkFrame.Infrastructure.Persistence;
 
 public sealed class ImmichConnectionRepository(ShrinkFrameDbContext db) : IImmichConnectionRepository
 {
+    public async Task<IReadOnlyList<StoredImmichConnection>> ListAsync(CancellationToken cancellationToken = default)
+        => (await db.Connections.AsNoTracking().OrderBy(x => x.DisplayName).ToListAsync(cancellationToken))
+            .Select(PersistenceMapper.ToDomain).ToArray();
+
     public async Task AddAsync(StoredImmichConnection connection, CancellationToken cancellationToken = default)
     {
         db.Connections.Add(PersistenceMapper.ToEntity(connection));
@@ -25,6 +29,32 @@ public sealed class ImmichConnectionRepository(ShrinkFrameDbContext db) : IImmic
             ?? throw new KeyNotFoundException("Immich connection was not found.");
         db.Entry(entity).CurrentValues.SetValues(replacement);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SetDefaultAsync(ConnectionId id, CancellationToken cancellationToken = default)
+    {
+        if (!await db.Connections.AnyAsync(x => x.Id == id.Value && x.Enabled, cancellationToken))
+            throw new KeyNotFoundException("An enabled Immich connection was not found.");
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.Connections.Where(x => x.IsDefault).ExecuteUpdateAsync(x => x.SetProperty(y => y.IsDefault, false), cancellationToken);
+        await db.Connections.Where(x => x.Id == id.Value).ExecuteUpdateAsync(x => x.SetProperty(y => y.IsDefault, true), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsRequiredByActiveWorkAsync(ConnectionId id, CancellationToken cancellationToken = default)
+    {
+        var terminal = new[] { nameof(BatchStatus.Completed), nameof(BatchStatus.Cancelled) };
+        var activeJobs = new[] { nameof(JobState.Acquiring), nameof(JobState.Probing), nameof(JobState.Queued),
+            nameof(JobState.Compressing), nameof(JobState.Validating) };
+        return await db.Batches.AnyAsync(x => x.ConnectionId == id.Value && !terminal.Contains(x.Status), cancellationToken)
+            || await db.Jobs.AnyAsync(x => x.SourceConnectionId == id.Value && (activeJobs.Contains(x.State)
+                || x.PublicationState == nameof(PublicationState.Publishing)), cancellationToken);
+    }
+
+    public async Task DeleteAsync(ConnectionId id, CancellationToken cancellationToken = default)
+    {
+        var affected = await db.Connections.Where(x => x.Id == id.Value).ExecuteDeleteAsync(cancellationToken);
+        if (affected == 0) throw new KeyNotFoundException("Immich connection was not found.");
     }
 }
 

@@ -20,16 +20,29 @@ public sealed class ImmichConnection
     public string? DetectedVersion { get; private set; }
     public CompatibilityResult Compatibility { get; private set; }
     public string? LastTestError { get; private set; }
-    public void RecordTest(DateTimeOffset at, string? version, CompatibilityResult result, string? error)
-        => (LastTestedAt, DetectedVersion, Compatibility, LastTestError) = (at, version, result, error);
+    public string? LastTestKeyId { get; private set; }
+    public string? LastTestKeyName { get; private set; }
+    public string? LastTestPermissions { get; private set; }
+    public void Update(string displayName, Uri baseUrl, bool allowInvalidCertificate, bool enabled, bool isDefault)
+    {
+        if (string.IsNullOrWhiteSpace(displayName) || !baseUrl.IsAbsoluteUri) throw new DomainException(DomainErrors.InvalidText, "Connection name and absolute URL are required.");
+        DisplayName = displayName.Trim(); BaseUrl = baseUrl; AllowInvalidCertificate = allowInvalidCertificate;
+        Enabled = enabled; IsDefault = isDefault;
+    }
+    public void RecordTest(DateTimeOffset at, string? version, CompatibilityResult result, string? error,
+        string? keyId = null, string? keyName = null, string? permissions = null)
+        => (LastTestedAt, DetectedVersion, Compatibility, LastTestError, LastTestKeyId, LastTestKeyName, LastTestPermissions)
+            = (at, version, result, error, keyId, keyName, permissions);
 
     internal static ImmichConnection Restore(ConnectionId id, string displayName, Uri baseUrl,
         bool allowInvalidCertificate, bool enabled, bool isDefault, DateTimeOffset? lastTestedAt,
-        string? detectedVersion, CompatibilityResult compatibility, string? lastTestError)
+        string? detectedVersion, CompatibilityResult compatibility, string? lastTestError,
+        string? lastTestKeyId = null, string? lastTestKeyName = null, string? lastTestPermissions = null)
     {
         var connection = new ImmichConnection(id, displayName, baseUrl, allowInvalidCertificate, enabled, isDefault);
         if (lastTestedAt.HasValue)
-            connection.RecordTest(lastTestedAt.Value, detectedVersion, compatibility, lastTestError);
+            connection.RecordTest(lastTestedAt.Value, detectedVersion, compatibility, lastTestError,
+                lastTestKeyId, lastTestKeyName, lastTestPermissions);
         return connection;
     }
 }

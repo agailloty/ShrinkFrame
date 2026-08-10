@@ -12,6 +12,10 @@ The POC has no authentication and must be deployed only on a trusted LAN or Tail
 - Redact `x-api-key` and multipart bodies from logs.
 - Never put secrets in query strings.
 - Disable a connection rather than repeatedly using failing credentials.
+- Keep `DataProtection:KeyRingPath` on the same persistent volume as the database lifecycle. If that
+  key ring is lost or replaced, saved credentials fail with `connection.api_key.unavailable`; restore
+  the original key ring or use the replace-key field. ShrinkFrame never includes the encrypted envelope
+  or plaintext in that error.
 
 ## HTTP and request safety
 

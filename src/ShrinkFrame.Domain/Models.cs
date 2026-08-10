@@ -10,7 +10,7 @@ public enum FindingSeverity { Warning, Blocking }
 public enum MaximumResolution { Keep = 0, P2160 = 2160, P1440 = 1440, P1080 = 1080, P720 = 720, P480 = 480 }
 public enum AudioMode { Auto, Copy, Aac }
 public enum EncoderPreset { Ultrafast, Superfast, Veryfast, Faster, Fast, Medium, Slow, Slower, Veryslow }
-public enum CompatibilityResult { Unknown, Compatible, Incompatible }
+public enum CompatibilityResult { Unknown, Compatible, Warning, Incompatible }
 
 public sealed record VideoSourceRef
 {

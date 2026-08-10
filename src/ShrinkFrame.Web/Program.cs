@@ -6,6 +6,7 @@ using ShrinkFrame.Application;
 using ShrinkFrame.Infrastructure.Persistence;
 using ShrinkFrame.Infrastructure.Storage;
 using ShrinkFrame.Infrastructure.Media;
+using ShrinkFrame.Infrastructure.Immich;
 using ShrinkFrame.Web.BrowserUploads;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,6 +53,9 @@ builder.Services.AddLocalWorkStorage(new WorkStorageOptions
 var mediaTools = builder.Configuration.GetSection(MediaToolOptions.SectionName).Get<MediaToolOptions>()
     ?? throw new InvalidOperationException("MediaTools configuration is required.");
 builder.Services.AddMediaTools(mediaTools);
+var immichConnections = builder.Configuration.GetSection(ImmichConnectionOptions.SectionName).Get<ImmichConnectionOptions>()
+    ?? new ImmichConnectionOptions();
+builder.Services.AddImmichConnections(immichConnections);
 
 var app = builder.Build();
 

@@ -26,6 +26,9 @@ internal sealed class ImmichConnectionConfiguration : IEntityTypeConfiguration<I
         builder.Property(x => x.Compatibility).HasMaxLength(32);
         builder.Property(x => x.DetectedVersion).HasMaxLength(100);
         builder.Property(x => x.LastTestError).HasMaxLength(2000);
+        builder.Property(x => x.LastTestKeyId).HasMaxLength(200);
+        builder.Property(x => x.LastTestKeyName).HasMaxLength(500);
+        builder.Property(x => x.LastTestPermissions).HasMaxLength(4000);
         builder.Property(x => x.LastTestedAt).NullableUtcTicks();
         builder.HasIndex(x => x.IsDefault).HasFilter("IsDefault = 1").IsUnique();
     }
