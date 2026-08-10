@@ -2,6 +2,33 @@
 
 Add newest entries at the top. Each entry must include date, prompt number, summary, verification commands, and any deviation from `decisions.md`.
 
+## 2026-08-10 — Prompt 01: solution bootstrap
+
+Summary:
+
+- Added a stable SDK policy selecting .NET SDK `10.0.102` with latest-patch roll-forward and prerelease disabled.
+- Created the Domain, Application, Infrastructure, Web, and Domain.Tests projects and enforced the documented modular-monolith project-reference graph. Domain has no project dependencies; Domain.Tests references only Domain.
+- Added repository-wide nullable reference types, implicit usings, deterministic builds, recommended analyzers, enforced code style, and warnings-as-errors. Central package management pins the MSTest SDK metapackage.
+- Configured a Blazor Web App with global Interactive Server rendering, Bootstrap placeholder navigation, English request/localization infrastructure, JSON console logging, a persisted configurable Data Protection key ring, validated storage/worker options, and an HTTP health endpoint.
+- Added placeholder pages for Dashboard, New Batch, Batches, Connections, Storage, and Settings/About. The UI and README state that the unauthenticated POC is restricted to trusted LAN/Tailscale use.
+- Updated root development commands. No media, Immich, persistence, filesystem adapter, or business-domain features were implemented.
+
+Decision deviations:
+
+- None.
+
+Verification performed:
+
+- `dotnet --version` — completed with stable SDK `10.0.102` selected by `global.json`.
+- `dotnet restore ShrinkFrame.sln` — completed successfully; NuGet access required an approved network-enabled retry after the sandbox blocked `api.nuget.org`.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 1 test, 0 failed, 0 skipped.
+- Project-reference inspection — confirmed Domain has none; Application references Domain; Infrastructure references Application and Domain; Web references all three; Domain.Tests references only Domain.
+- Domain forbidden-type scan for EF, `HttpClient`, process, filesystem, ASP.NET Core, and Blazor namespaces — no matches.
+- Local startup smoke check using `http://127.0.0.1:5080` with a workspace-local Data Protection key-ring override — `/health` returned `Healthy`; `/` returned HTTP 200 and contained Dashboard, New Batch, and Settings/About navigation.
+- `git diff --check` — completed with no whitespace errors.
+- Secret-pattern scan — no API keys, connection strings, passwords, or secrets found in added source/configuration files.
+
 ## 2026-08-10 — Prompt 00: foundation audit
 
 Summary:

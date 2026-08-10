@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ShrinkFrame.Application\ShrinkFrame.Application.csproj" />
+    <ProjectReference Include="..\ShrinkFrame.Infrastructure\ShrinkFrame.Infrastructure.csproj" />
+    <ProjectReference Include="..\ShrinkFrame.Domain\ShrinkFrame.Domain.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

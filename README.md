@@ -18,4 +18,18 @@ The repository currently contains the architecture and the ordered implementatio
 - Original Immich assets are never deleted or replaced.
 - MIT license.
 
-No production code has been implemented yet.
+## Development
+
+The repository pins a stable .NET 10 SDK feature band. From the repository root:
+
+```powershell
+dotnet restore ShrinkFrame.sln
+dotnet build ShrinkFrame.sln --configuration Release --no-restore
+dotnet test ShrinkFrame.sln --configuration Release --no-build
+$env:DataProtection__KeyRingPath = ".local/keys"
+dotnet run --project src/ShrinkFrame.Web/ShrinkFrame.Web.csproj --no-build --configuration Release --urls http://localhost:5080
+```
+
+Open `http://localhost:5080` to view the placeholder shell or request `http://localhost:5080/health` for the startup smoke check.
+
+The POC has no authentication. Run it only on a trusted LAN or Tailscale network; public exposure is unsupported.

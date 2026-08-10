@@ -368,6 +368,8 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
+.local/
+.shrinkframe-smoke*.log
 
 # Visual Studio History (VSHistory) files
 .vshistory/
