@@ -144,3 +144,27 @@ Unresolved blockers:
 
 - Docker Engine availability is required for image digest resolution and all container verification.
 - Prompt 12 requires a real supported Immich 3.1.x test server (or its version-matched generated contract) to prove stable description/location preservation.
+## 2026-08-10 — Prompt 05: ffprobe and FFmpeg infrastructure
+
+Summary:
+
+- Added Application-owned probing, compression, process-result, structured-progress, stream metadata, and startup-status contracts.
+- Added shell-free ffprobe JSON probing with bounded diagnostics, cancellable process-tree termination, default-stream selection, QuickTime capture-date and ISO 6709 location mapping, stream/disposition details, and display-matrix/tag rotation normalization.
+- Added a typed-only FFmpeg argument builder using `ProcessStartInfo.ArgumentList`, deliberate video/audio/global metadata/chapter mapping, `libx264`, `yuv420p`, `+faststart`, machine progress, configurable AAC bitrate/thread count, compatible-audio copy, and AAC fallback.
+- Applied the existing long-display-edge scaling policy with even dimensions, portrait/rotation handling, and no upscaling. PQ and HLG inputs are explicitly rejected because the POC has no validated HDR preservation or tone-mapping policy.
+- Added bounded concurrent stdout/stderr readers, exit-code/output checks, process-tree cancellation, awaited exit/readers, and mandatory removal of failed or cancelled `.partial` output. Finalization remains a separate storage/validation operation.
+- Added startup version validation and media-tool health details, plus synthetic-fixture manual commands and automated cancellation coverage.
+
+Decision deviations:
+
+- None. Resolution labels continue to cap the long display dimension exactly as established in Prompt 02; for example, a 1920×1080 input under the 720 setting becomes 720×404.
+
+Verification performed:
+
+- `ffmpeg -version` and `ffprobe -version` — both reported `N-117403-g496b8d7a13-20241007`; FFmpeg includes `libx264`.
+- Synthetic probe — a generated 640×360 MOV with PCM audio, creation time, and filename `fixture input & safe [x].mov` mapped as H.264 video plus PCM audio without shell interpretation.
+- Synthetic compression — completed with exit code 0; structured progress reported `out_time_us=2933333`, `speed=11.2x`, and `total_size=190353`; final probe reported H.264, `yuv420p`, 480×270, 3.000 seconds, and 190353 bytes. FFmpeg reported moving the `moov` atom to the file beginning for faststart.
+- Cancellation test — cancelled a `veryslow` encode, awaited process termination, and confirmed no `.partial.mp4` remained.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 181 tests, 0 failed, 0 skipped (162 Domain and 19 Infrastructure).
+- `git diff --check` — completed with no whitespace errors.

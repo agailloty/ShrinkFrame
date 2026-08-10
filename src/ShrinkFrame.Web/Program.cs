@@ -2,8 +2,10 @@ using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
 using ShrinkFrame.Web.Components;
 using ShrinkFrame.Web.Configuration;
+using ShrinkFrame.Application;
 using ShrinkFrame.Infrastructure.Persistence;
 using ShrinkFrame.Infrastructure.Storage;
+using ShrinkFrame.Infrastructure.Media;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,9 @@ builder.Services.AddLocalWorkStorage(new WorkStorageOptions
     ReserveBytes = storage.ReserveBytes,
     BufferSizeBytes = storage.BufferSizeBytes,
 });
+var mediaTools = builder.Configuration.GetSection(MediaToolOptions.SectionName).Get<MediaToolOptions>()
+    ?? throw new InvalidOperationException("MediaTools configuration is required.");
+builder.Services.AddMediaTools(mediaTools);
 
 var app = builder.Build();
 
@@ -57,7 +62,9 @@ app.UseRequestLocalization(new RequestLocalizationOptions
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapGet("/health", (IMediaToolStatus media) => media.Current.Available
+    ? Results.Ok(new { status = "Healthy", media = media.Current })
+    : Results.Json(new { status = "Unhealthy", media = media.Current }, statusCode: 503));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
