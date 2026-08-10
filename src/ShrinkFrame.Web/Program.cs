@@ -39,6 +39,7 @@ builder.Services.AddOptions<BrowserUploadOptions>()
         "BrowserUploads:AllowedOrigins must contain only absolute HTTP(S) origins without paths.")
     .ValidateOnStart();
 builder.Services.AddScoped<BrowserUploadService>();
+builder.Services.AddScoped<IBatchWizard, BatchWizard>();
 builder.Services.AddScoped<SameOriginFilter>();
 builder.Services.AddShrinkFrameSqlite(
     builder.Configuration.GetConnectionString("ShrinkFrame")

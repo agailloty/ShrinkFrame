@@ -2,7 +2,6 @@
 @using ShrinkFrame.Domain
 @inject IImmichConnectionManager Connections
 @inject IImmichVideoBrowser Browser
-
 <div class="mt-3">
     <label class="form-label" for="immich-connection">Immich connection</label>
     <select id="immich-connection" class="form-select" value="@connectionId" @onchange="ConnectionChangedAsync">
@@ -61,12 +60,15 @@
 </div>
 
 @code {
+    [Parameter] public EventCallback<ConnectionId?> ConnectionChanged { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<BatchSelection>> SelectionChanged { get; set; }
     private IReadOnlyList<ImmichConnectionView> connections = [];
     private IReadOnlyList<ImmichAlbum> albums = [];
     private ImmichConnectionView? selectedConnection;
     private ImmichVideoPage? page;
     private ImmichVideoDetail? detail;
     private HashSet<string> selection = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, BatchSelection> known = new(StringComparer.Ordinal);
     private string connectionId = "", albumId = "", sort = nameof(ImmichVideoSort.TakenNewest);
     private DateTime? takenAfter, takenBefore;
     private string? errorCode, error;
@@ -74,8 +76,9 @@
     protected override async Task OnInitializedAsync() => connections = (await Connections.ListAsync()).Where(x => x.Enabled && x.Compatibility == CompatibilityResult.Compatible && x.Capabilities.CanUseAsSource).ToArray();
     private async Task ConnectionChangedAsync(ChangeEventArgs e)
     {
-        connectionId = e.Value?.ToString() ?? ""; page = null; detail = null; albums = []; selection.Clear(); ClearError();
+        connectionId = e.Value?.ToString() ?? ""; page = null; detail = null; albums = []; selection.Clear(); known.Clear(); ClearError();
         selectedConnection = connections.FirstOrDefault(x => x.Id.Value.ToString() == connectionId);
+        await ConnectionChanged.InvokeAsync(selectedConnection?.Id);
         if (selectedConnection is null) return;
         await RunAsync(async () => { albums = await Browser.ListAlbumsAsync(selectedConnection.Id); selection = (await Browser.GetSelectionAsync(selectedConnection.Id)).ToHashSet(StringComparer.Ordinal); await SearchAsync(1); });
     }
@@ -85,10 +88,20 @@
     private async Task SearchAsync(int number)
     {
         page = await Browser.SearchAsync(new(selectedConnection!.Id, number, ToOffset(takenAfter), ToOffset(takenBefore, endOfDay: true), string.IsNullOrEmpty(albumId) ? null : albumId, Enum.Parse<ImmichVideoSort>(sort)));
+        foreach (var item in page.Items) known[item.AssetId] = new(item.AssetId, item.FileName, item.SizeBytes);
     }
-    private async Task ToggleAsync(string id, bool value) { await RunAsync(async () => { await Browser.SetSelectedAsync(selectedConnection!.Id, [id], value); if (value) selection.Add(id); else selection.Remove(id); }); }
-    private async Task SelectPageAsync() { await RunAsync(async () => { var ids = page!.Items.Select(x => x.AssetId).ToArray(); await Browser.SetSelectedAsync(selectedConnection!.Id, ids, true); selection.UnionWith(ids); }); }
-    private async Task ClearAsync() { await RunAsync(async () => { await Browser.ClearSelectionAsync(selectedConnection!.Id); selection.Clear(); }); }
+    private async Task ToggleAsync(string id, bool value) { await RunAsync(async () => { await Browser.SetSelectedAsync(selectedConnection!.Id, [id], value); if (value) selection.Add(id); else selection.Remove(id); await NotifySelectionAsync(); }); }
+    private async Task SelectPageAsync() { await RunAsync(async () => { var ids = page!.Items.Select(x => x.AssetId).ToArray(); await Browser.SetSelectedAsync(selectedConnection!.Id, ids, true); selection.UnionWith(ids); await NotifySelectionAsync(); }); }
+    private async Task ClearAsync() { await RunAsync(async () => { await Browser.ClearSelectionAsync(selectedConnection!.Id); selection.Clear(); await NotifySelectionAsync(); }); }
+    private async Task NotifySelectionAsync()
+    {
+        foreach (var id in selection.Where(x => !known.ContainsKey(x)).ToArray())
+        {
+            var item = await Browser.GetDetailAsync(selectedConnection!.Id, id);
+            known[id] = new(id, item.FileName, null);
+        }
+        await SelectionChanged.InvokeAsync(selection.Select(id => known[id]).ToArray());
+    }
     private async Task ShowDetailAsync(string id) { await RunAsync(async () => detail = await Browser.GetDetailAsync(selectedConnection!.Id, id)); }
     private string ThumbnailUrl(string id) => $"/api/immich/{selectedConnection!.Id.Value}/assets/{id}/thumbnail";
     private static string Dimensions(ImmichVideoSummary x) => x.Width is null ? "Unknown size" : $"{x.Width} × {x.Height}";

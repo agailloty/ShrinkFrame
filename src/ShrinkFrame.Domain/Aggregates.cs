@@ -61,21 +61,46 @@ public sealed class CompressionBatch
     public SourceKind SourceKind { get; }
     public ConnectionId? ConnectionId { get; }
     public BatchStatus Status { get; private set; }
-    public CompressionOptions DefaultOptions { get; }
+    public CompressionOptions DefaultOptions { get; private set; }
     public bool CapacityAdmissionOverride { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public ReadOnlyCollection<JobId> JobIds => jobIds.AsReadOnly();
     public void AddJob(JobId id, VideoSourceRef source, DateTimeOffset now)
     {
+        EnsureDraft();
         if (source.Kind != SourceKind || source.ConnectionId != ConnectionId) throw new DomainException(DomainErrors.InvalidBatchSource, "Job source must match its batch.");
         if (!jobIds.Contains(id)) jobIds.Add(id);
         UpdatedAt = now;
     }
+    public void Rename(string name, DateTimeOffset now)
+    {
+        EnsureDraft();
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 300)
+            throw new DomainException(DomainErrors.InvalidText, "Batch name is required and must be 300 characters or fewer.");
+        Name = name.Trim(); UpdatedAt = now;
+    }
+    public void Configure(CompressionOptions options, DateTimeOffset now)
+    {
+        EnsureDraft(); DefaultOptions = options with { }; UpdatedAt = now;
+    }
+    public void Confirm(DateTimeOffset now)
+    {
+        EnsureDraft();
+        if (jobIds.Count == 0) throw new DomainException(DomainErrors.InvalidText, "Select at least one video before confirmation.");
+        Status = SourceKind == SourceKind.Immich ? BatchStatus.Acquiring : BatchStatus.Processing;
+        UpdatedAt = now;
+    }
     public void AuthorizeCapacityAdmissionOverride(DateTimeOffset now)
     {
+        EnsureDraft();
         CapacityAdmissionOverride = true;
         UpdatedAt = now;
+    }
+    private void EnsureDraft()
+    {
+        if (Status != BatchStatus.Draft)
+            throw new DomainException(DomainErrors.InvalidJobTransition, "A confirmed batch cannot be edited through the wizard.");
     }
 
     internal static CompressionBatch Restore(BatchId id, string name, SourceKind sourceKind,
@@ -113,8 +138,8 @@ public sealed class CompressionJob
     public JobId Id { get; }
     public BatchId BatchId { get; }
     public VideoSourceRef Source { get; }
-    public PresetId PresetId { get; }
-    public CompressionOptions EffectiveOptions { get; }
+    public PresetId PresetId { get; private set; }
+    public CompressionOptions EffectiveOptions { get; private set; }
     public JobState State { get; private set; }
     public PublicationState PublicationState { get; private set; }
     public bool NotBeneficialPublicationOverride { get; private set; }
@@ -127,6 +152,13 @@ public sealed class CompressionJob
     public ReadOnlyCollection<ValidationFinding> Findings => findings.AsReadOnly();
     public IEnumerable<ValidationFinding> Warnings => findings.Where(x => !x.IsBlocking);
     public IEnumerable<ValidationFinding> BlockingFindings => findings.Where(x => x.IsBlocking);
+
+    public void SelectOptions(PresetId presetId, CompressionOptions effectiveOptions, DateTimeOffset now)
+    {
+        if (State is not (JobState.Draft or JobState.Probing))
+            throw new DomainException(DomainErrors.InvalidJobTransition, "Options cannot change after confirmation.");
+        PresetId = presetId; EffectiveOptions = effectiveOptions with { }; UpdatedAt = now;
+    }
 
     public void TransitionTo(JobState target, DateTimeOffset now)
     {

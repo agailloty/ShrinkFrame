@@ -1,160 +1,114 @@
 @page "/new-batch"
 @implements IAsyncDisposable
+@using ShrinkFrame.Application
+@using ShrinkFrame.Domain
 @inject IJSRuntime JS
+@inject IBatchWizard Wizard
 
 <PageTitle>New Batch</PageTitle>
 <h1>New Batch</h1>
 
+@if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger" role="alert"><strong>@errorCode</strong> @error</div> }
+
 <section class="mb-4" aria-labelledby="source-heading">
     <h2 id="source-heading" class="h4">1. Source</h2>
-    <div class="form-check">
-        <input class="form-check-input" type="radio" name="source" id="browser-source" value="browser" checked="@(source == "browser")" @onchange='() => SetSource("browser")' />
-        <label class="form-check-label" for="browser-source">Browser upload</label>
-    </div>
-    <div class="form-check">
-        <input class="form-check-input" type="radio" name="source" id="immich-source" value="immich" checked="@(source == "immich")" @onchange='() => SetSource("immich")' />
-        <label class="form-check-label" for="immich-source">Immich</label>
-    </div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="source" id="browser-source" checked="@(sourceKind == SourceKind.BrowserUpload)" @onchange="() => SetSource(SourceKind.BrowserUpload)" disabled="@IsPersisted" /><label class="form-check-label" for="browser-source">Browser upload</label></div>
+    <div class="form-check"><input class="form-check-input" type="radio" name="source" id="immich-source" checked="@(sourceKind == SourceKind.Immich)" @onchange="() => SetSource(SourceKind.Immich)" disabled="@IsPersisted" /><label class="form-check-label" for="immich-source">Immich</label></div>
     <label class="form-label mt-3" for="batch-name">Batch name</label>
-    <input id="batch-name" class="form-control" maxlength="300" @bind="batchName" />
+    <input id="batch-name" class="form-control" maxlength="300" @bind="batchName" disabled="@IsLocked" required aria-describedby="batch-name-help" />
+    <div id="batch-name-help" class="form-text">Generated for convenience; you can edit it until confirmation.</div>
 </section>
 
-<section aria-labelledby="videos-heading">
+<section class="mb-4" aria-labelledby="videos-heading">
     <h2 id="videos-heading" class="h4">2. Select videos</h2>
-    @if (source == "immich")
+    @if (sourceKind == SourceKind.Immich)
     {
-        <ImmichVideoBrowser />
+        <ImmichVideoBrowser ConnectionChanged="ImmichConnectionChangedAsync" SelectionChanged="ImmichSelectionChanged" />
+        <button class="btn btn-primary mt-3" disabled="@(immichConnection is null || immichSelection.Count == 0 || IsLocked)" @onclick="CreateImmichBatchAsync">Continue to compression</button>
     }
     else
     {
-    <div @ref="dropZone" class="upload-drop-zone" tabindex="0" role="button"
-         aria-label="Drop video files here or open the file picker">
-        <p class="mb-2">Drag and drop video files here</p>
-        <button type="button" class="btn btn-outline-primary" @onclick="OpenPickerAsync">Choose files</button>
-        <input data-upload-picker type="file" multiple class="visually-hidden" />
-    </div>
-
-    @if (!string.IsNullOrWhiteSpace(pageError))
-    {
-        <div class="alert alert-danger mt-3" role="alert"><strong>@pageErrorCode</strong> @pageError</div>
-    }
-
-    @if (files.Count > 0)
-    {
-        <div class="table-responsive mt-3">
-            <table class="table align-middle">
-                <thead><tr><th>File</th><th>Status</th><th>Progress</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
-                <tbody>
-                @foreach (var file in files)
-                {
-                    <tr @key="file.ClientId">
-                        <td class="text-break">@file.FileName</td>
-                        <td>@file.State@if (!string.IsNullOrEmpty(file.ErrorCode))
-                            {
-                                <div class="text-danger small">@file.ErrorCode: @file.ErrorMessage</div>
-                            }
-                        </td>
-                        <td style="min-width: 12rem">
-                            <div class="progress" role="progressbar" aria-label="Upload progress for @file.FileName" aria-valuenow="@file.Progress" aria-valuemin="0" aria-valuemax="100">
-                                <div class="progress-bar" style="width: @(file.Progress)%">@(file.Progress)%</div>
-                            </div>
-                        </td>
-                        <td class="text-end">
-                            @if (file.CanRetry)
-                            {
-                                <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => RetryAsync(file.ClientId)">Retry</button>
-                            }
-                            @if (!file.IsUploading)
-                            {
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveAsync(file.ClientId)">Remove</button>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+        <div @ref="dropZone" class="upload-drop-zone" tabindex="0" role="button" aria-label="Drop video files here or open the file picker">
+            <p class="mb-2">Drag and drop video files here</p><button type="button" class="btn btn-outline-primary" @onclick="OpenPickerAsync" disabled="@IsLocked">Choose files</button><input data-upload-picker type="file" multiple class="visually-hidden" />
         </div>
-        <button class="btn btn-primary" disabled="@files.All(x => x.IsServerKnown || x.IsUploading)" @onclick="UploadAsync">Upload selected files</button>
-    }
+        @if (files.Count > 0)
+        {
+            <div class="table-responsive mt-3"><table class="table align-middle"><thead><tr><th>File</th><th>Status</th><th>Progress</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
+            @foreach (var file in files) { <tr @key="file.ClientId"><td class="text-break">@file.FileName</td><td>@file.State @if (file.ErrorCode is not null) { <div class="text-danger small">@file.ErrorCode: @file.ErrorMessage</div> }</td><td><progress class="w-100" max="100" value="@file.Progress" aria-label="Upload progress for @file.FileName">@file.Progress%</progress></td><td class="text-end">@if (file.CanRetry) { <button class="btn btn-sm btn-outline-primary" @onclick="() => RetryAsync(file.ClientId)">Retry</button> } @if (!file.IsUploading && !file.IsServerKnown) { <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveAsync(file.ClientId)">Remove</button> }</td></tr> }
+            </tbody></table></div>
+            <button class="btn btn-primary" disabled="@(files.All(x => x.IsServerKnown || x.IsUploading) || IsLocked)" @onclick="UploadAsync">Upload selected files</button>
+        }
     }
 </section>
 
+@if (batch is not null)
+{
+<section class="mb-4" aria-labelledby="compression-heading">
+    <h2 id="compression-heading" class="h4">3. Compression</h2>
+    @if (IsLocked) { <div class="alert alert-info">This batch is confirmed. Its option snapshots can no longer be edited.</div> }
+    <label class="form-label" for="global-preset">Global built-in preset</label>
+    <select id="global-preset" class="form-select" value="@globalPreset.Value" @onchange="GlobalPresetChanged" disabled="@IsLocked">@foreach (var preset in Wizard.Presets) { <option value="@preset.Id.Value">@preset.Name</option> }</select>
+    <h3 class="h5 mt-3">Batch advanced controls</h3>
+    <div class="row g-3">
+        <div class="col-md-2"><label class="form-label" for="crf">CRF</label><InputNumber id="crf" class="form-control" @bind-Value="crf" min="18" max="36" disabled="@IsLocked" />@if (crf > 30) { <div class="text-warning" role="status">CRF above 30 can visibly reduce quality.</div> }</div>
+        <div class="col-md-2"><label class="form-label" for="speed">x264 speed</label><InputSelect id="speed" class="form-select" @bind-Value="speed" disabled="@IsLocked">@foreach (var value in Enum.GetValues<EncoderPreset>()) { <option value="@value">@value</option> }</InputSelect></div>
+        <div class="col-md-2"><label class="form-label" for="resolution">Maximum</label><InputSelect id="resolution" class="form-select" @bind-Value="resolution" disabled="@IsLocked">@foreach (var value in Enum.GetValues<MaximumResolution>()) { <option value="@value">@ResolutionLabel(value)</option> }</InputSelect></div>
+        <div class="col-md-2"><label class="form-label" for="audio">Audio</label><InputSelect id="audio" class="form-select" @bind-Value="audio" disabled="@IsLocked"><option value="Auto">Auto</option><option value="Copy">Copy</option><option value="Aac">AAC</option></InputSelect></div>
+        <div class="col-md-2"><label class="form-label" for="suffix">Filename suffix</label><InputText id="suffix" class="form-control" @bind-Value="suffix" disabled="@IsLocked" /></div>
+    </div>
+    <div class="table-responsive mt-3"><table class="table"><thead><tr><th>Video</th><th>Preset</th></tr></thead><tbody>
+    @foreach (var job in batch.Jobs) { <tr><td>@job.FileName</td><td><select class="form-select" aria-label="Preset for @job.FileName" value="@SelectedPreset(job.Id)" @onchange="e => PerVideoChanged(job.Id, e.Value?.ToString())" disabled="@IsLocked"><option value="">Use global</option>@foreach (var preset in Wizard.Presets) { <option value="@preset.Id.Value">@preset.Name</option> }</select></td></tr> }
+    </tbody></table></div>
+    @if (!IsLocked) { <button class="btn btn-primary" disabled="@(batch.Jobs.Count == 0)" @onclick="SaveAndShowSummaryAsync">Save and review summary</button> }
+</section>
+}
+
+@if (showSummary && batch is not null)
+{
+<section aria-labelledby="summary-heading">
+    <h2 id="summary-heading" class="h4">4. Summary</h2>
+    <p><strong>@batch.Jobs.Count</strong> videos · source artifacts @Bytes(batch.Capacity.SourceBytes) · required capacity @Bytes(batch.Capacity.RequiredBytes) · available @Bytes(batch.Capacity.AvailableBytes).</p>
+    @if (batch.Capacity.HasWarning) { <div class="alert alert-warning" role="alert">Capacity estimate is @batch.Capacity.Reason. Compression cannot be confirmed without the explicit override.</div><div class="form-check"><InputCheckbox id="force-capacity" class="form-check-input" @bind-Value="forceCapacity" disabled="@IsLocked" /><label class="form-check-label" for="force-capacity">Force processing despite low capacity</label></div> }
+    <table class="table"><thead><tr><th>Video</th><th>Source size</th><th>Persisted effective options</th></tr></thead><tbody>@foreach (var job in batch.Jobs) { <tr><td>@job.FileName</td><td>@Bytes(job.SizeBytes)</td><td>CRF @job.EffectiveOptions.Crf, @job.EffectiveOptions.EncoderPreset, @ResolutionLabel(job.EffectiveOptions.MaximumResolution), @job.EffectiveOptions.AudioMode, @job.EffectiveOptions.Suffix</td></tr> }</tbody></table>
+    @if (!IsLocked) { <button class="btn btn-success" disabled="@(batch.Capacity.RequiresOverride && !forceCapacity)" @onclick="ConfirmAsync">Confirm batch</button> }
+</section>
+}
+
 @code {
-    private ElementReference dropZone;
-    private IJSObjectReference? module;
-    private DotNetObjectReference<NewBatch>? self;
-    private string batchName = $"Browser upload {DateTime.Now:yyyy-MM-dd HH:mm}";
-    private string source = "browser";
-    private readonly List<UploadRow> files = [];
-    private string? pageErrorCode;
-    private string? pageError;
+    private ElementReference dropZone; private IJSObjectReference? module; private DotNetObjectReference<NewBatch>? self;
+    private SourceKind sourceKind = SourceKind.BrowserUpload; private string batchName = $"Browser upload {DateTime.Now:yyyy-MM-dd HH:mm}";
+    private BatchWizardView? batch; private ConnectionId? immichConnection; private IReadOnlyList<BatchSelection> immichSelection = [];
+    private readonly List<UploadRow> files = []; private readonly Dictionary<JobId, PresetId> perVideo = [];
+    private PresetId globalPreset = new("balanced"); private int crf = 24; private EncoderPreset speed = EncoderPreset.Medium;
+    private MaximumResolution resolution = MaximumResolution.Keep; private AudioMode audio = AudioMode.Auto; private string suffix = "_V";
+    private bool showSummary, forceCapacity; private string? errorCode, error;
+    private bool IsPersisted => batch is not null; private bool IsLocked => batch is not null && batch.Status != BatchStatus.Draft;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        module = await JS.InvokeAsync<IJSObjectReference>("import", "./browser-uploads.js");
-        self = DotNetObjectReference.Create(this);
-        await module.InvokeVoidAsync("initialize", dropZone, self);
-        await module.InvokeVoidAsync("restore");
-    }
-
-    private async Task OpenPickerAsync() => await module!.InvokeVoidAsync("openPicker");
-    private void SetSource(string value) { source = value; batchName = $"{(source == "immich" ? "Immich" : "Browser upload")} {DateTime.Now:yyyy-MM-dd HH:mm}"; }
-    private async Task UploadAsync() => await module!.InvokeVoidAsync("uploadAll", batchName);
-    private async Task RetryAsync(string id) => await module!.InvokeVoidAsync("retry", id, batchName);
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (!firstRender) return; module = await JS.InvokeAsync<IJSObjectReference>("import", "./browser-uploads.js"); self = DotNetObjectReference.Create(this); await module.InvokeVoidAsync("initialize", dropZone, self); await module.InvokeVoidAsync("restore"); }
+    private Task OpenPickerAsync() => module!.InvokeVoidAsync("openPicker").AsTask();
+    private void SetSource(SourceKind value) { sourceKind = value; batchName = $"{(value == SourceKind.Immich ? "Immich" : "Browser upload")} {DateTime.Now:yyyy-MM-dd HH:mm}"; }
+    private Task UploadAsync() => module!.InvokeVoidAsync("uploadAll", batchName).AsTask(); private Task RetryAsync(string id) => module!.InvokeVoidAsync("retry", id, batchName).AsTask();
     private async Task RemoveAsync(string id) { await module!.InvokeVoidAsync("remove", id); files.RemoveAll(x => x.ClientId == id); }
+    private Task ImmichConnectionChangedAsync(ConnectionId? id) { immichConnection = id; return Task.CompletedTask; }
+    private void ImmichSelectionChanged(IReadOnlyList<BatchSelection> value) => immichSelection = value;
+    private async Task CreateImmichBatchAsync() => await RunAsync(async () => { batch = await Wizard.CreateAsync(SourceKind.Immich, immichConnection, batchName); batch = await Wizard.AddImmichSelectionAsync(batch.Id, immichSelection); LoadOptions(batch.DefaultOptions); });
+    private async Task GlobalPresetChanged(ChangeEventArgs e) { globalPreset = new(e.Value?.ToString() ?? "balanced"); LoadOptions(BuiltInPresets.Snapshot(globalPreset)); await InvokeAsync(StateHasChanged); }
+    private void PerVideoChanged(JobId id, string? value) { if (string.IsNullOrEmpty(value)) perVideo.Remove(id); else perVideo[id] = new(value); }
+    private string SelectedPreset(JobId id) => perVideo.TryGetValue(id, out var value) ? value.Value : "";
+    private async Task SaveAndShowSummaryAsync() => await RunAsync(async () => { var options = new CompressionOptions(crf, speed, resolution, audio, suffix); batch = await Wizard.SaveSettingsAsync(batch!.Id, new(batchName, globalPreset, options, perVideo)); showSummary = true; });
+    private async Task ConfirmAsync() => await RunAsync(async () => { batch = await Wizard.ConfirmAsync(batch!.Id, forceCapacity); showSummary = true; });
+    private void LoadOptions(CompressionOptions value) => (crf, speed, resolution, audio, suffix) = (value.Crf, value.EncoderPreset, value.MaximumResolution, value.AudioMode, value.Suffix);
+    private async Task RunAsync(Func<Task> action) { error = errorCode = null; try { await action(); } catch (DomainException ex) { errorCode = ex.Code; error = ex.Message; } catch (Exception ex) { errorCode = "batch.invalid"; error = ex.Message; } }
+    private static string ResolutionLabel(MaximumResolution value) => value == MaximumResolution.Keep ? "Keep" : $"{(int)value}p";
+    private static string Bytes(long? value) => value is null ? "Unknown" : value.Value < 1024 ? $"{value} B" : $"{value.Value / 1024d / 1024d:N1} MB";
 
-    [JSInvokable]
-    public void FilesSelected(UploadFileInfo[] selected)
-    {
-        foreach (var item in selected)
-            if (files.All(x => x.ClientId != item.ClientId)) files.Add(new(item.ClientId, item.FileName, "Ready", 0));
-        StateHasChanged();
-    }
-
-    [JSInvokable]
-    public void UploadProgress(string clientId, int percentage)
-    {
-        var file = files.FirstOrDefault(x => x.ClientId == clientId);
-        if (file is not null) { file.State = "Uploading"; file.Progress = percentage; file.IsUploading = true; StateHasChanged(); }
-    }
-
-    [JSInvokable]
-    public void UploadCompleted(string clientId, string state, string? errorCode, string? errorMessage)
-    {
-        var file = files.FirstOrDefault(x => x.ClientId == clientId);
-        if (file is not null) { file.State = state; file.Progress = errorCode is null ? 100 : file.Progress; file.ErrorCode = errorCode; file.ErrorMessage = errorMessage; file.IsUploading = false; file.IsServerKnown = true; StateHasChanged(); }
-    }
-
-    [JSInvokable]
-    public void ServerState(ServerBatchState state)
-    {
-        batchName = state.Name;
-        files.Clear();
-        files.AddRange(state.Files.Select(x => new UploadRow(x.JobId.ToString(), x.FileName, x.State, x.State == "Probing" ? 100 : 0)
-        { ErrorCode = x.ErrorCode, ErrorMessage = x.ErrorMessage, IsServerKnown = true, HasLocalFile = false }));
-        StateHasChanged();
-    }
-
-    [JSInvokable]
-    public void PageError(string code, string message) { pageErrorCode = code; pageError = message; StateHasChanged(); }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (module is not null) await module.DisposeAsync();
-        self?.Dispose();
-    }
-
-    public sealed record UploadFileInfo(string ClientId, string FileName, long Size);
-    public sealed record ServerBatchState(Guid BatchId, string Name, ServerFileState[] Files);
-    public sealed record ServerFileState(Guid JobId, string FileName, string State, long? BytesReceived, string? ErrorCode, string? ErrorMessage);
-    private sealed class UploadRow(string clientId, string fileName, string state, int progress)
-    {
-        public string ClientId { get; } = clientId; public string FileName { get; } = fileName;
-        public string State { get; set; } = state; public int Progress { get; set; } = progress;
-        public string? ErrorCode { get; set; } public string? ErrorMessage { get; set; }
-        public bool IsUploading { get; set; } public bool IsServerKnown { get; set; }
-        public bool HasLocalFile { get; set; } = true;
-        public bool CanRetry => ErrorCode is not null && !IsUploading && HasLocalFile;
-    }
+    [JSInvokable] public void FilesSelected(UploadFileInfo[] selected) { foreach (var item in selected) if (files.All(x => x.ClientId != item.ClientId)) files.Add(new(item.ClientId, item.FileName, "Ready", 0)); StateHasChanged(); }
+    [JSInvokable] public void UploadProgress(string id, int percentage) { var file = files.FirstOrDefault(x => x.ClientId == id); if (file is not null) { file.State = "Uploading"; file.Progress = percentage; file.IsUploading = true; StateHasChanged(); } }
+    [JSInvokable] public async Task UploadCompleted(string id, string state, string? code, string? message) { var file = files.FirstOrDefault(x => x.ClientId == id); if (file is not null) { file.State = state; file.Progress = code is null ? 100 : file.Progress; file.ErrorCode = code; file.ErrorMessage = message; file.IsUploading = false; file.IsServerKnown = true; } if (batch is not null) batch = await Wizard.GetAsync(batch.Id); StateHasChanged(); }
+    [JSInvokable] public async Task BatchReady(string id) { batch = await Wizard.GetAsync(BatchId.From(Guid.Parse(id))); if (batch is not null) { batchName = batch.Name; LoadOptions(batch.DefaultOptions); } StateHasChanged(); }
+    [JSInvokable] public void ServerState(ServerBatchState state) { batchName = state.Name; files.Clear(); files.AddRange(state.Files.Select(x => new UploadRow(x.JobId.ToString(), x.FileName, x.State, x.BytesReceived.HasValue ? 100 : 0) { ErrorCode = x.ErrorCode, ErrorMessage = x.ErrorMessage, IsServerKnown = true, HasLocalFile = false })); StateHasChanged(); }
+    [JSInvokable] public void PageError(string code, string message) { errorCode = code; error = message; StateHasChanged(); }
+    public async ValueTask DisposeAsync() { if (module is not null) await module.DisposeAsync(); self?.Dispose(); }
+    public sealed record UploadFileInfo(string ClientId, string FileName, long Size); public sealed record ServerBatchState(Guid BatchId, string Name, ServerFileState[] Files); public sealed record ServerFileState(Guid JobId, string FileName, string State, long? BytesReceived, string? ErrorCode, string? ErrorMessage);
+    private sealed class UploadRow(string clientId, string fileName, string state, int progress) { public string ClientId { get; } = clientId; public string FileName { get; } = fileName; public string State { get; set; } = state; public int Progress { get; set; } = progress; public string? ErrorCode { get; set; } public string? ErrorMessage { get; set; } public bool IsUploading { get; set; } public bool IsServerKnown { get; set; } public bool HasLocalFile { get; set; } = true; public bool CanRetry => ErrorCode is not null && !IsUploading && HasLocalFile; }
 }

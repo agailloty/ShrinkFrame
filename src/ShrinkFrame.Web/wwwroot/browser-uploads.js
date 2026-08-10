@@ -47,6 +47,7 @@ async function ensureBatch(name) {
     if (!response.ok) throw body;
     batchId = body.batchId;
     sessionStorage.setItem('shrinkframe.browserBatchId', batchId);
+    await dotnet.invokeMethodAsync('BatchReady', batchId);
     return batchId;
 }
 
@@ -93,6 +94,6 @@ export async function restore() {
     const batchId = sessionStorage.getItem('shrinkframe.browserBatchId');
     if (!batchId) return;
     const response = await fetch(`/api/browser-batches/${batchId}`, { credentials: 'same-origin' });
-    if (response.ok) await dotnet.invokeMethodAsync('ServerState', await response.json());
+    if (response.ok) { await dotnet.invokeMethodAsync('BatchReady', batchId); await dotnet.invokeMethodAsync('ServerState', await response.json()); }
     else if (response.status === 404) sessionStorage.removeItem('shrinkframe.browserBatchId');
 }

@@ -133,6 +133,46 @@ public sealed class PersistenceTests
         await Assert.ThrowsExactlyAsync<PersistenceConcurrencyException>(() => repository.UpdateAsync(job, version));
     }
 
+    [TestMethod]
+    public async Task BatchWizardPersistsEffectiveSnapshotsAndRequiresCapacityOverride()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        BatchId batchId;
+        JobId jobId;
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var batchRepository = new BatchRepository(db);
+            var jobRepository = new CompressionJobRepository(db);
+            var wizard = new BatchWizard(batchRepository, jobRepository, new FixedCapacity(false), new FixedTime(now));
+            var created = await wizard.CreateAsync(SourceKind.BrowserUpload, null, "Editable");
+            batchId = created.Id;
+            var source = VideoSourceRef.Browser("upload-1");
+            var job = new CompressionJob(JobId.New(), batchId, source, new("balanced"), created.DefaultOptions, now);
+            jobId = job.Id;
+            job.TransitionTo(JobState.Acquiring, now); job.TransitionTo(JobState.Probing, now);
+            job.RecordProbe(new VideoMetadata("clip.mp4", "video/mp4", 1000, TimeSpan.FromSeconds(1), 16, 16,
+                "h264", ["aac"], now, 0), new ArtifactRef("source/input.bin"));
+            await jobRepository.AddAsync(job);
+            var aggregate = (await batchRepository.GetAsync(batchId))!; aggregate.AddJob(jobId, source, now); await batchRepository.UpdateAsync(aggregate);
+            var settings = new BatchSettings("Renamed", new("balanced"), new(31, EncoderPreset.Fast,
+                MaximumResolution.P1080, AudioMode.Aac, "_small"), new Dictionary<JobId, PresetId> { [jobId] = new("hd") });
+            var summary = await wizard.SaveSettingsAsync(batchId, settings);
+            Assert.AreEqual(BuiltInPresets.Snapshot(new("hd")), summary.Jobs.Single().EffectiveOptions);
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => wizard.ConfirmAsync(batchId, false));
+        }
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var wizard = new BatchWizard(new BatchRepository(db), new CompressionJobRepository(db), new FixedCapacity(false), new FixedTime(now));
+            var confirmed = await wizard.ConfirmAsync(batchId, true);
+            Assert.AreEqual(BatchStatus.Processing, confirmed.Status);
+            Assert.IsTrue(confirmed.CapacityAdmissionOverride);
+            Assert.AreEqual(JobState.Queued, confirmed.Jobs.Single().State);
+            Assert.AreEqual(BuiltInPresets.Snapshot(new("hd")), confirmed.Jobs.Single().EffectiveOptions);
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => wizard.SaveSettingsAsync(batchId,
+                new("Too late", new("balanced"), BuiltInPresets.Snapshot(new("balanced")), new Dictionary<JobId, PresetId>())));
+        }
+    }
+
     private async Task<(JobId Id, long Version)> AddQueuedBrowserJobAsync()
     {
         var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
@@ -169,5 +209,17 @@ public sealed class PersistenceTests
         public ShrinkFrameDbContext CreateDbContext() => new(options);
         public Task<ShrinkFrameDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(new ShrinkFrameDbContext(options));
+    }
+
+    private sealed class FixedCapacity(bool sufficient) : IDiskCapacityService
+    {
+        public CapacityAdmission Evaluate(long sourceBytes, bool forceRequested = false) => new(sourceBytes, 10_000, 1, 0,
+            sufficient ? CapacityReason.Sufficient : CapacityReason.InsufficientSpace, forceRequested);
+    }
+
+    private sealed class FixedTime(DateTimeOffset value) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => value;
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
     }
 }

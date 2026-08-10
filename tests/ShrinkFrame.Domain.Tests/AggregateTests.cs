@@ -36,6 +36,23 @@ public sealed class AggregateTests
     }
 
     [TestMethod]
+    public void Confirmation_locks_wizard_edits_and_preserves_job_snapshots()
+    {
+        var batch = new CompressionBatch(BatchId.New(), "Draft", SourceKind.Immich, ConnectionId.New(), Options(), Now);
+        var source = VideoSourceRef.Immich("asset", batch.ConnectionId!.Value);
+        var job = new CompressionJob(JobId.New(), batch.Id, source, new("balanced"), Options(), Now);
+        var alternate = BuiltInPresets.Snapshot(new("hd"));
+        job.SelectOptions(new("hd"), alternate, Now);
+        batch.AddJob(job.Id, source, Now); job.TransitionTo(JobState.Acquiring, Now); batch.Confirm(Now);
+
+        Assert.AreEqual(BatchStatus.Acquiring, batch.Status);
+        Assert.AreEqual(alternate, job.EffectiveOptions);
+        OptionsAndPolicyTests.AssertCode(DomainErrors.InvalidJobTransition, () => batch.Rename("Changed", Now));
+        OptionsAndPolicyTests.AssertCode(DomainErrors.InvalidJobTransition, () => batch.Configure(Options(), Now));
+        OptionsAndPolicyTests.AssertCode(DomainErrors.InvalidJobTransition, () => job.SelectOptions(new("balanced"), Options(), Now));
+    }
+
+    [TestMethod]
     public void Job_effective_options_are_a_snapshot()
     {
         var selected = BuiltInPresets.Snapshot(new("balanced"));

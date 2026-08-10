@@ -301,3 +301,16 @@ Verification performed:
 - `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
 - `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 181 tests, 0 failed, 0 skipped (162 Domain and 19 Infrastructure).
 - `git diff --check` — completed with no whitespace errors.
+## 2026-08-10 — Prompt 09: persistent batch wizard and settings
+
+Summary:
+
+- Added a shared application batch-wizard use case for browser and Immich sources, including editable generated names, immutable built-in preset catalog exposure, draft settings, per-video built-in overrides, persisted summaries, capacity admission, and explicit confirmation.
+- Added aggregate guards that prevent wizard edits after confirmation and resolve each job's effective option snapshot before its state leaves the editable phase.
+- Completed the Source → Selection → Compression → Summary Blazor flow. Browser upload state reconnects to the persisted batch; Immich selection is converted to application-owned selection records rather than exposing infrastructure DTOs to the page.
+- Added accessible CRF validation/warning, typed x264 speed, maximum resolution, audio and suffix controls. No arbitrary FFmpeg argument field exists.
+- Confirmation moves probed browser jobs to `Queued` and Immich jobs to `Acquiring`; no job is queued or acquired from wizard actions before explicit confirmation.
+
+Decision deviations:
+
+- None. Immich source byte sizes remain unknown when Immich does not return them, and the summary labels those values as unknown rather than inventing an estimate.
