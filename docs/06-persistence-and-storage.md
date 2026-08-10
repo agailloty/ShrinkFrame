@@ -2,7 +2,7 @@
 
 ## SQLite
 
-Use EF Core with SQLite. Repositories defined by Application hide EF entities. Migrations are committed and applied automatically at startup under a single-instance lock suitable for the POC.
+Use EF Core with SQLite. Repositories defined by Application hide EF entities. Migrations are committed and applied automatically at startup under a single-instance lock suitable for version 1.0.
 
 Store:
 

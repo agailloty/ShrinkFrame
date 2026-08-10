@@ -6,7 +6,7 @@
 > disk, and publish through every configured Immich connection. Bind and firewall it to a trusted LAN or
 > Tailscale network. Direct public Internet exposure is unsupported.
 
-The POC Docker Compose defines one ShrinkFrame service, one persistent named volume mounted at `/data`, HTTP exposure, restart policy, and health check. No reverse proxy is bundled.
+The version 1.0 Docker Compose defines one ShrinkFrame service, one persistent named volume mounted at `/data`, HTTP exposure, restart policy, and health check. No reverse proxy is bundled.
 
 The final runtime image:
 
@@ -123,7 +123,7 @@ must not contain API keys; treat any accidental credential output as a rotation 
 
 ## Reverse proxy guidance
 
-The POC is HTTP-only. Documentation must show generic requirements for a future proxy: WebSockets, large request bodies, long upload/download timeouts, response streaming, forwarded headers, and HTTPS. Do not ship insecure universal proxy snippets without explaining their limits.
+Version 1.0 is HTTP-only. Documentation must show generic reverse-proxy requirements: WebSockets, large request bodies, long upload/download timeouts, response streaming, forwarded headers, and HTTPS. Do not ship insecure universal proxy snippets without explaining their limits.
 
 ## CI
 

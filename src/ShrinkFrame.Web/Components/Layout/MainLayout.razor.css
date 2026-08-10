@@ -1,25 +1,35 @@
 .page {
-    position: relative;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
+    background: #f4f7fb;
 }
 
 main {
     flex: 1;
+    min-width: 0;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background: #101d2d;
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
+    background: rgba(255, 255, 255, .88);
+    border-bottom: 1px solid #dfe7f0;
+    justify-content: space-between;
+    min-height: 4.5rem;
     display: flex;
     align-items: center;
+    padding: .75rem 1.25rem;
+    backdrop-filter: blur(16px);
 }
+
+.top-row-copy { display: flex; flex-direction: column; line-height: 1.2; }
+.top-row-eyebrow { color: #728096; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.top-row-title { color: #152235; font-size: .95rem; font-weight: 650; }
+.version-pill { display: inline-flex; align-items: center; gap: .5rem; color: #334155; background: #eef4f8; border: 1px solid #d8e4ec; border-radius: 999px; padding: .45rem .75rem; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.version-dot { width: .45rem; height: .45rem; border-radius: 50%; background: #19a8a5; box-shadow: 0 0 0 3px rgba(25, 168, 165, .13); }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
         white-space: nowrap;
@@ -38,8 +48,11 @@ main {
 
 @media (max-width: 640.98px) {
     .top-row {
-        justify-content: space-between;
+        min-height: 3.75rem;
+        padding-left: 4.75rem;
     }
+
+    .top-row-copy { display: none; }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
         margin-left: 0;
@@ -52,7 +65,7 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: 17rem;
         height: 100vh;
         position: sticky;
         top: 0;
@@ -70,10 +83,7 @@ main {
         width: 0;
     }
 
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
+    .top-row { padding-left: clamp(1.5rem, 4vw, 4rem); padding-right: clamp(1.5rem, 4vw, 4rem); }
 }
 
 #blazor-error-ui {

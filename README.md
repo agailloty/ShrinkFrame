@@ -1,8 +1,8 @@
 # ShrinkFrame
 
 ShrinkFrame is a self-hosted Blazor application that streams browser or Immich videos to a server,
-compresses them to validated H.264 MP4 with FFmpeg, and retains downloadable results. It is a proof of
-concept for one trusted operator on a LAN or Tailscale network.
+compresses them to validated H.264 MP4 with FFmpeg, and retains downloadable results. Version 1.0.0 is
+designed for one trusted operator on a LAN or Tailscale network.
 
 > ShrinkFrame has no authentication. Do not expose it directly to the public Internet.
 
@@ -35,7 +35,7 @@ UI so keys are encrypted with the persisted Data Protection key ring.
 
 See [deployment and operations](docs/10-deployment.md) for configuration, backup/restore, upgrade, rollback,
 disk pressure, log, shutdown, and reverse-proxy guidance. Release evidence and remaining blockers are in
-[POC release evidence](docs/11-poc-release-evidence.md).
+[version 1.0 release evidence](docs/11-version-1-release-evidence.md).
 
 ## Develop and verify
 
@@ -55,7 +55,7 @@ to `/data`. Architecture and contributor rules begin in [AGENTS.md](AGENTS.md); 
 
 ## Scope and license
 
-The POC is CPU-only, single-node, and uses SQLite plus local artifacts. It does not replace or delete original
+Version 1.0 is CPU-only, single-node, and uses SQLite plus local artifacts. It does not replace or delete original
 Immich assets. There is no GPU encoding, resumable transfer, arbitrary FFmpeg arguments, multi-instance
 transfer, application authentication, or multi-node execution.
 

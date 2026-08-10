@@ -1,4 +1,4 @@
-# POC release evidence
+# Version 1.0 release evidence
 
 Date: 2026-08-10. This is an evidence ledger, not a claim that blocked scenarios passed.
 
@@ -22,7 +22,7 @@ safety. Prompt 15 verification results are recorded in the latest implementation
 | Never expose credentials | Automated key-ring restart/redaction checks and Prompt 14 audit pass; Compose and CI contain no secrets. |
 | Never modify/delete original assets | Source adapter has download-only behavior and no original delete/trash call exists. Live validation is blocked, but no original asset was modified or deleted during this release work. |
 
-## Required manual acceptance before a POC release
+## Required manual acceptance before a version 1.0 release
 
 Use only a dedicated Immich test library, non-admin API key, test album, and non-personal media corpus from
 `docs/09-testing.md`. Record file hashes/asset IDs before and after.
@@ -40,4 +40,4 @@ Use only a dedicated Immich test library, non-admin API key, test album, and non
 6. Record exact Docker/Compose/.NET/FFmpeg/ffprobe/Immich versions, commands, HTTP results, screenshots or logs,
    hashes/IDs, container recreation result, shutdown timing, and final Git status.
 
-Until every blocked row is closed with evidence, this checkout is a release candidate, not a validated POC release.
+Until every blocked row is closed with evidence, this checkout is a release candidate, not a validated version 1.0 release.

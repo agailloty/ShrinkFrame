@@ -15,7 +15,7 @@ public sealed class FfmpegArgumentBuilder(MediaToolOptions options)
         if (request.VideoStreamIndex < 0 || request.AudioStreamIndex < 0) throw new ArgumentOutOfRangeException(nameof(request));
         if (request.EffectiveRotation is not (0 or 90 or 180 or 270)) throw new ArgumentOutOfRangeException(nameof(request));
         if (request.SourceIsHdr) throw new NotSupportedException(
-            "HDR input is not supported by the POC because no validated HDR preservation or tone-mapping policy is configured.");
+            "HDR input is not supported in version 1.0 because no validated HDR preservation or tone-mapping policy is configured.");
 
         var target = DisplayTarget(request);
         var args = new List<string>

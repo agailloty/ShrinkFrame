@@ -12,7 +12,7 @@ ShrinkFrame is a modular monolith. One ASP.NET Core process hosts:
 - local work storage;
 - Immich and FFmpeg adapters.
 
-The POC uses one Docker container and one persistent volume. Logical isolation must allow the worker, database, and storage adapters to be replaced later without changing the domain.
+Version 1.0 uses one Docker container and one persistent volume. Logical isolation must allow the worker, database, and storage adapters to be replaced later without changing the domain.
 
 ## Solution projects
 
@@ -55,11 +55,11 @@ Web ───────────────► Application ─────
 - `IDiskCapacityService`: admission decisions.
 - `IJobProgressSink`: throttled durable progress.
 
-Do not create a generic plug-in framework. The interfaces cover only the two POC sources and two destinations. Extend them when a real third integration exists.
+Do not create a generic plug-in framework. The interfaces cover only the two version 1.0 sources and two destinations. Extend them when a real third integration exists.
 
 ## Scalability
 
-The POC scales vertically:
+Version 1.0 scales vertically:
 
 - compression concurrency is configurable and defaults to one;
 - acquisition can have a separate low concurrency;

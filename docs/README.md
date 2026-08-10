@@ -15,7 +15,7 @@ These documents are the durable project context. They are intentionally split so
 | `08-user-experience.md` | Pages, wizard, behavior and English UI terminology |
 | `09-testing.md` | Automated and manual verification strategy |
 | `10-deployment.md` | Docker, configuration, health, CI and operations |
-| `11-poc-release-evidence.md` | Final success-criterion evidence and unresolved release blockers |
+| `11-version-1-release-evidence.md` | Final success-criterion evidence and unresolved release blockers |
 | `decisions.md` | Consolidated architecture decision record |
 | `implementation-log.md` | Decisions and evidence produced during implementation |
 

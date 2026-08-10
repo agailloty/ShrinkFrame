@@ -1,6 +1,6 @@
 # Consolidated decisions
 
-Status: accepted for POC. Change a decision only through a dated entry in `implementation-log.md` explaining the reason and impact.
+Status: accepted for version 1.0. Change a decision only through a dated entry in `implementation-log.md` explaining the reason and impact.
 
 ## Product
 
@@ -12,7 +12,7 @@ Status: accepted for POC. Change a decision only through a dated entry in `imple
 - Linear wizard: source, selection, settings, summary, processing, publication.
 - Browser upload and Immich input; local download and Immich publication.
 - Multiple stored Immich instances; one instance per batch.
-- Immich sources publish only to their source instance in the POC.
+- Immich sources publish only to their source instance in version 1.0.
 - Browser sources may publish to any enabled instance.
 - Original Immich assets remain unchanged.
 - Preserve name, capture date, description, location, and albums.
@@ -47,7 +47,7 @@ Status: accepted for POC. Change a decision only through a dated entry in `imple
 
 ## Security and operations
 
-- HTTP only in POC; document later reverse-proxy HTTPS.
+- HTTP only in version 1.0; document reverse-proxy HTTPS.
 - API keys encrypted with ASP.NET Core Data Protection; persisted key ring.
 - Saved keys cannot be displayed, only replaced.
 - Invalid certificates rejected by default; explicit per-connection override.

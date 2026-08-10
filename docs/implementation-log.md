@@ -1,5 +1,12 @@
 # Implementation log
 
+## 2026-08-10 — Version 1.0 interface refresh
+
+- Reworked the application shell, responsive navigation, typography, color system, cards, tables, forms,
+  upload surface, dashboard hero, and About presentation using only the existing Bootstrap and native CSS.
+- Added version 1.0.0 product and assembly metadata and removed prototype wording from the current product UI
+  and primary reference documentation. The trusted-network/no-authentication security boundary remains explicit.
+
 ## 2026-08-10 — Prompt 12: Immich publication
 
 Summary:
@@ -107,7 +114,7 @@ Unresolved release blockers:
 - No dedicated Immich 3.1.x test server/non-admin key was supplied. Live acquisition and original-asset
   before/after comparison remain blocked; no original Immich asset was modified or deleted in this work.
 - Prompt 12 implementation is absent, blocking publication, partial-publication retry, and preservation of
-  published description/location/album membership. See `docs/11-poc-release-evidence.md` for the exact closure
+  published description/location/album membership. See `docs/11-version-1-release-evidence.md` for the exact closure
   protocol.
 
 ## 2026-08-10 — Prompt 14: hardening, health and resilience

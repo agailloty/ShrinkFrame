@@ -9,9 +9,9 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 - One technically capable user on a trusted LAN or Tailscale network.
 - Linux host with Docker Engine.
 - Initial sizing: 4 CPU cores, 8 GB RAM, approximately 70 GB available storage.
-- No public Internet exposure and no application-level authentication in the POC.
+- No public Internet exposure and no application-level authentication in version 1.0.
 
-## POC capabilities
+## Version 1.0 capabilities
 
 1. Manage multiple Immich connections: add, edit, test, disable, delete, and select a default.
 2. Create a named batch from either browser uploads or one Immich instance.
@@ -46,6 +46,6 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 - No email, webhook, or browser notifications.
 - No ZIP generation for multiple outputs.
 
-## POC success criteria
+## Version 1.0 success criteria
 
 On the target Linux Docker host, a user can select multiple videos from one Immich instance or upload them from a browser, compress each to validated H.264 MP4, observe progress across restarts, download results, and publish selected results to the correct Immich instance without exposing credentials or modifying original assets.

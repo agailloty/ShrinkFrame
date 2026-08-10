@@ -2,7 +2,7 @@
 
 ## Trust model
 
-The POC has no authentication and must be deployed only on a trusted LAN or Tailscale network. Anyone who can reach it can consume CPU/disk and publish assets through configured Immich connections. The UI and README must display this limitation. Public exposure is unsupported.
+Version 1.0 has no authentication and must be deployed only on a trusted LAN or Tailscale network. Anyone who can reach it can consume CPU/disk and publish assets through configured Immich connections. The UI and README must display this limitation. Public exposure is unsupported.
 
 ## Secrets
 
@@ -19,7 +19,7 @@ The POC has no authentication and must be deployed only on a trusted LAN or Tail
 
 ## HTTP and request safety
 
-- POC listens on HTTP; HTTPS termination is a documented future reverse-proxy concern.
+- Version 1.0 listens on HTTP; HTTPS termination belongs at the documented reverse proxy.
 - Enforce configured upload limits in Kestrel/endpoints and stream bodies.
 - Validate MIME by probing content, not extension or browser header.
 - Apply antiforgery protections to browser-initiated state changes where supported by the selected endpoint style.

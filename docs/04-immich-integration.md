@@ -2,7 +2,7 @@
 
 ## Compatibility policy
 
-The POC targets Immich 3.1.x and uses only a small handwritten typed `HttpClient`. On connection test, record the server version and report:
+Version 1.0 targets Immich 3.1.x and uses only a small handwritten typed `HttpClient`. On connection test, record the server version and report:
 
 - compatible: tested supported major/minor;
 - warning: same major but untested minor;
@@ -31,7 +31,7 @@ Every path below is relative to `{BaseUrl}/api`. Normalize the configured base U
 
 Send the API key only in the `x-api-key` request header. Never use the `apiKey` query parameter.
 
-Required POC permissions:
+Required version 1.0 permissions:
 
 | Permission | Use |
 |---|---|
@@ -106,7 +106,7 @@ Do not use internal timeline endpoints or deprecated update endpoints. Before im
 - Use `HttpCompletionOption.ResponseHeadersRead`.
 - Stream with bounded buffers and cancellation.
 - Do not retry large transfer bodies automatically unless the retry is known to restart from zero and cleans the partial file.
-- An interrupted POC transfer restarts from zero.
+- An interrupted version 1.0 transfer restarts from zero.
 - Validate expected content length when present and probe the completed file.
 - Thumbnail proxy applies bounded size, content-type allowlist, short cache headers, and cancellation.
 
@@ -129,7 +129,7 @@ The only documented direct asset mutation DTO is behind deprecated asset-update 
 not call them. It uploads the validated MP4 (which may contain preserved embedded tags), preserves filename and
 dates through documented multipart fields, and records/displays `publication.metadata.not_guaranteed` whenever
 the source snapshot has description or coordinates. Live verification may prove extraction from a particular
-3.1.x build, but the POC does not claim a stable API guarantee for these fields.
+3.1.x build, but version 1.0 does not claim a stable API guarantee for these fields.
 
 Before every upload or retry ShrinkFrame computes the output SHA-1 with a bounded streaming read and calls the
 stable bulk-upload check. A persisted client attempt ID correlates the response. An existing non-trashed asset

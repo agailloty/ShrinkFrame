@@ -1,6 +1,6 @@
 # Testing and verification
 
-## Automated POC scope
+## Automated version 1.0 scope
 
 Only domain unit tests are mandatory. They must cover:
 

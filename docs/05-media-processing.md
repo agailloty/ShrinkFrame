@@ -33,7 +33,7 @@ The application derives an effective orientation rather than relying only on wid
 
 - Container: MP4.
 - Video: libx264 H.264.
-- Pixel format: use broadly compatible `yuv420p` unless the validated source/policy explicitly requires otherwise; HDR behavior must be documented and may be rejected with a clear warning in the POC rather than silently damaged.
+- Pixel format: use broadly compatible `yuv420p` unless the validated source/policy explicitly requires otherwise; HDR behavior must be documented and may be rejected with a clear warning in version 1.0 rather than silently damaged.
 - Enable `+faststart` unconditionally.
 - Map intended video/audio streams and global metadata deliberately.
 - Do not accidentally include thumbnail/cover-art video streams as the primary video.
@@ -65,9 +65,9 @@ Output is accepted only when:
 
 Loss of capture date or rotation is blocking. Other lost metadata becomes a warning. A valid output with size greater than or equal to input becomes `NotBeneficial`; it is retained and may be downloaded or force-published.
 
-## POC HDR limitation
+## Version 1.0 HDR limitation
 
-The POC rejects video identified by ffprobe as PQ (`smpte2084`) or HLG (`arib-std-b67`). Its H.264 output policy is 8-bit `yuv420p`, and no validated tone-mapping or HDR metadata-preservation pipeline is configured. Converting such input would risk washed-out colors or clipped highlights. HDR support requires a later explicit color-management policy and validation fixtures; it must not be enabled by merely removing the rejection.
+Version 1.0 rejects video identified by ffprobe as PQ (`smpte2084`) or HLG (`arib-std-b67`). Its H.264 output policy is 8-bit `yuv420p`, and no validated tone-mapping or HDR metadata-preservation pipeline is configured. Converting such input would risk washed-out colors or clipped highlights. HDR support requires a later explicit color-management policy and validation fixtures; it must not be enabled by merely removing the rejection.
 
 ## Repeatable manual checks
 

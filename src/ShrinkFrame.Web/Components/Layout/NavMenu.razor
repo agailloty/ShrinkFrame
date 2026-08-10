@@ -1,6 +1,9 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">ShrinkFrame</a>
+        <a class="navbar-brand" href="" aria-label="ShrinkFrame dashboard">
+            <span class="brand-mark" aria-hidden="true"><span></span></span>
+            <span class="brand-copy"><strong>ShrinkFrame</strong><small>Video compression</small></span>
+        </a>
     </div>
 </div>
 
@@ -8,26 +11,14 @@
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="new-batch">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> New Batch
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="batches">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Batches
-            </NavLink>
-        </div>
-        <div class="nav-item px-3"><NavLink class="nav-link" href="connections">Connections</NavLink></div>
-        <div class="nav-item px-3"><NavLink class="nav-link" href="storage">Storage</NavLink></div>
-        <div class="nav-item px-3"><NavLink class="nav-link" href="settings">Settings/About</NavLink></div>
+        <div class="nav-label">Workspace</div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-glyph" aria-hidden="true">⌂</span> Dashboard</NavLink></div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="new-batch"><span class="nav-glyph" aria-hidden="true">＋</span> New Batch</NavLink></div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="batches"><span class="nav-glyph" aria-hidden="true">▤</span> Batches</NavLink></div>
+        <div class="nav-label nav-label-spaced">Manage</div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="connections"><span class="nav-glyph" aria-hidden="true">⇄</span> Connections</NavLink></div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="storage"><span class="nav-glyph" aria-hidden="true">▱</span> Storage</NavLink></div>
+        <div class="nav-item px-3"><NavLink class="nav-link" href="settings"><span class="nav-glyph" aria-hidden="true">⚙</span> Settings &amp; About</NavLink></div>
     </nav>
+    <div class="sidebar-footer"><span>Self-hosted</span><strong>Version 1.0.0</strong></div>
 </div>
-
