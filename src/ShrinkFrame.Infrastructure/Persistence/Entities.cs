@@ -109,3 +109,10 @@ internal sealed class PublicationAttemptEntity
     public required string Result { get; set; }
     public string? ErrorSummary { get; set; }
 }
+
+internal sealed class ImmichBrowserSelectionEntity
+{
+    public Guid ConnectionId { get; set; }
+    public required string AssetId { get; set; }
+    public DateTimeOffset SelectedAt { get; set; }
+}

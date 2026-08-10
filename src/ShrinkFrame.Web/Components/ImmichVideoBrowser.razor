@@ -1,0 +1,98 @@
+@using ShrinkFrame.Application
+@using ShrinkFrame.Domain
+@inject IImmichConnectionManager Connections
+@inject IImmichVideoBrowser Browser
+
+<div class="mt-3">
+    <label class="form-label" for="immich-connection">Immich connection</label>
+    <select id="immich-connection" class="form-select" value="@connectionId" @onchange="ConnectionChangedAsync">
+        <option value="">Choose a compatible connection</option>
+        @foreach (var connection in connections)
+        {
+            <option value="@connection.Id.Value">@connection.DisplayName</option>
+        }
+    </select>
+
+    @if (!string.IsNullOrEmpty(error)) { <div class="alert alert-danger mt-3" role="alert">@errorCode: @error</div> }
+    @if (selectedConnection is not null)
+    {
+        <div class="row g-2 mt-2 align-items-end">
+            <div class="col-md-3"><label class="form-label" for="taken-after">Taken after</label><input id="taken-after" type="date" class="form-control" @bind="takenAfter" /></div>
+            <div class="col-md-3"><label class="form-label" for="taken-before">Taken before</label><input id="taken-before" type="date" class="form-control" @bind="takenBefore" /></div>
+            <div class="col-md-3"><label class="form-label" for="album">Album</label><select id="album" class="form-select" @bind="albumId"><option value="">All albums</option>@foreach (var album in albums) { <option value="@album.Id">@album.Name (@album.AssetCount)</option> }</select></div>
+            <div class="col-md-2"><label class="form-label" for="sort">Sort</label><select id="sort" class="form-select" @bind="sort"><option value="TakenNewest">Newest taken</option><option value="TakenOldest">Oldest taken</option></select></div>
+            <div class="col-md-1"><button class="btn btn-outline-primary" @onclick="ApplyFiltersAsync">Apply</button></div>
+        </div>
+        <p class="form-text">Immich applies taken date, album, and taken-date sort globally. Byte size is unavailable in the v3.1 metadata response, so no misleading global size filter or size sort is offered.</p>
+
+        @if (page is not null)
+        {
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <button class="btn btn-sm btn-outline-primary" @onclick="SelectPageAsync">Select current page</button>
+                <button class="btn btn-sm btn-outline-secondary" disabled="@(selection.Count == 0)" @onclick="ClearAsync">Clear selection</button>
+                <span>@selection.Count selected across pages</span><span class="text-muted">Page @(page.Page) · @(page.Total) total results</span>
+            </div>
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+                @foreach (var video in page.Items)
+                {
+                    <div class="col" @key="video.AssetId"><article class="card h-100">
+                        <img src="@ThumbnailUrl(video.AssetId)" class="card-img-top object-fit-cover" style="height:10rem" alt="Thumbnail for @video.FileName" loading="lazy" />
+                        <div class="card-body"><h3 class="h6 text-break">@video.FileName</h3><div class="small text-muted">@video.TakenAt.LocalDateTime.ToString("g") · @Dimensions(video)</div></div>
+                        <div class="card-footer d-flex justify-content-between align-items-center">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="select-@video.AssetId" checked="@selection.Contains(video.AssetId)" @onchange="e => ToggleAsync(video.AssetId, (bool)(e.Value ?? false))" /><label class="form-check-label" for="select-@video.AssetId">Select</label></div>
+                            <button class="btn btn-sm btn-link" @onclick="() => ShowDetailAsync(video.AssetId)">Details</button>
+                        </div>
+                    </article></div>
+                }
+            </div>
+            <nav class="d-flex justify-content-between mt-3" aria-label="Immich video pages">
+                <button class="btn btn-outline-secondary" disabled="@(page.Page == 1)" @onclick="PreviousAsync">Previous</button>
+                <button class="btn btn-outline-secondary" disabled="@(page.NextPage is null)" @onclick="NextAsync">Next</button>
+            </nav>
+        }
+        @if (detail is not null)
+        {
+            <aside class="card mt-4" aria-labelledby="detail-title"><div class="card-body">
+                <div class="d-flex justify-content-between"><h3 id="detail-title" class="h5">Video details</h3><button class="btn-close" aria-label="Close details" @onclick="() => detail = null"></button></div>
+                <dl class="row mb-0"><dt class="col-sm-3">File</dt><dd class="col-sm-9 text-break">@detail.FileName</dd><dt class="col-sm-3">Taken</dt><dd class="col-sm-9">@detail.TakenAt.LocalDateTime.ToString("F")</dd><dt class="col-sm-3">Dimensions</dt><dd class="col-sm-9">@detail.Width × @detail.Height</dd><dt class="col-sm-3">Duration</dt><dd class="col-sm-9">@detail.Duration</dd><dt class="col-sm-3">Description</dt><dd class="col-sm-9">@(detail.Description ?? "—")</dd><dt class="col-sm-3">Albums</dt><dd class="col-sm-9">@detail.AlbumIds.Count</dd></dl>
+            </div></aside>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<ImmichConnectionView> connections = [];
+    private IReadOnlyList<ImmichAlbum> albums = [];
+    private ImmichConnectionView? selectedConnection;
+    private ImmichVideoPage? page;
+    private ImmichVideoDetail? detail;
+    private HashSet<string> selection = new(StringComparer.Ordinal);
+    private string connectionId = "", albumId = "", sort = nameof(ImmichVideoSort.TakenNewest);
+    private DateTime? takenAfter, takenBefore;
+    private string? errorCode, error;
+
+    protected override async Task OnInitializedAsync() => connections = (await Connections.ListAsync()).Where(x => x.Enabled && x.Compatibility == CompatibilityResult.Compatible && x.Capabilities.CanUseAsSource).ToArray();
+    private async Task ConnectionChangedAsync(ChangeEventArgs e)
+    {
+        connectionId = e.Value?.ToString() ?? ""; page = null; detail = null; albums = []; selection.Clear(); ClearError();
+        selectedConnection = connections.FirstOrDefault(x => x.Id.Value.ToString() == connectionId);
+        if (selectedConnection is null) return;
+        await RunAsync(async () => { albums = await Browser.ListAlbumsAsync(selectedConnection.Id); selection = (await Browser.GetSelectionAsync(selectedConnection.Id)).ToHashSet(StringComparer.Ordinal); await SearchAsync(1); });
+    }
+    private Task ApplyFiltersAsync() => RunAsync(() => SearchAsync(1));
+    private Task PreviousAsync() => RunAsync(() => SearchAsync(page!.Page - 1));
+    private Task NextAsync() => RunAsync(() => SearchAsync(page!.NextPage!.Value));
+    private async Task SearchAsync(int number)
+    {
+        page = await Browser.SearchAsync(new(selectedConnection!.Id, number, ToOffset(takenAfter), ToOffset(takenBefore, endOfDay: true), string.IsNullOrEmpty(albumId) ? null : albumId, Enum.Parse<ImmichVideoSort>(sort)));
+    }
+    private async Task ToggleAsync(string id, bool value) { await RunAsync(async () => { await Browser.SetSelectedAsync(selectedConnection!.Id, [id], value); if (value) selection.Add(id); else selection.Remove(id); }); }
+    private async Task SelectPageAsync() { await RunAsync(async () => { var ids = page!.Items.Select(x => x.AssetId).ToArray(); await Browser.SetSelectedAsync(selectedConnection!.Id, ids, true); selection.UnionWith(ids); }); }
+    private async Task ClearAsync() { await RunAsync(async () => { await Browser.ClearSelectionAsync(selectedConnection!.Id); selection.Clear(); }); }
+    private async Task ShowDetailAsync(string id) { await RunAsync(async () => detail = await Browser.GetDetailAsync(selectedConnection!.Id, id)); }
+    private string ThumbnailUrl(string id) => $"/api/immich/{selectedConnection!.Id.Value}/assets/{id}/thumbnail";
+    private static string Dimensions(ImmichVideoSummary x) => x.Width is null ? "Unknown size" : $"{x.Width} × {x.Height}";
+    private static DateTimeOffset? ToOffset(DateTime? value, bool endOfDay = false) => value is null ? null : new DateTimeOffset(endOfDay ? value.Value.Date.AddDays(1).AddTicks(-1) : value.Value.Date);
+    private async Task RunAsync(Func<Task> action) { ClearError(); try { await action(); } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (KeyNotFoundException) { errorCode = "connection.deleted"; error = "The connection was deleted. Choose another connection."; } }
+    private void ClearError() { errorCode = null; error = null; }
+}

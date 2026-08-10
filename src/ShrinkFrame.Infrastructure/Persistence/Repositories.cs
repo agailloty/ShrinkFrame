@@ -58,6 +58,29 @@ public sealed class ImmichConnectionRepository(ShrinkFrameDbContext db) : IImmic
     }
 }
 
+public sealed class ImmichBrowserSelectionRepository(ShrinkFrameDbContext db, TimeProvider timeProvider) : IImmichBrowserSelectionRepository
+{
+    public async Task<IReadOnlySet<string>> ListAsync(ConnectionId connectionId, CancellationToken cancellationToken = default)
+        => (await db.ImmichBrowserSelections.AsNoTracking().Where(x => x.ConnectionId == connectionId.Value)
+            .Select(x => x.AssetId).ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
+
+    public async Task AddAsync(ConnectionId connectionId, IEnumerable<string> assetIds, CancellationToken cancellationToken = default)
+    {
+        var ids = assetIds.Distinct(StringComparer.Ordinal).ToArray();
+        var existing = await db.ImmichBrowserSelections.Where(x => x.ConnectionId == connectionId.Value && ids.Contains(x.AssetId))
+            .Select(x => x.AssetId).ToListAsync(cancellationToken);
+        db.ImmichBrowserSelections.AddRange(ids.Except(existing, StringComparer.Ordinal).Select(id => new ImmichBrowserSelectionEntity
+            { ConnectionId = connectionId.Value, AssetId = id, SelectedAt = timeProvider.GetUtcNow() }));
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task RemoveAsync(ConnectionId connectionId, IEnumerable<string> assetIds, CancellationToken cancellationToken = default)
+        => db.ImmichBrowserSelections.Where(x => x.ConnectionId == connectionId.Value && assetIds.Contains(x.AssetId)).ExecuteDeleteAsync(cancellationToken);
+
+    public Task ClearAsync(ConnectionId connectionId, CancellationToken cancellationToken = default)
+        => db.ImmichBrowserSelections.Where(x => x.ConnectionId == connectionId.Value).ExecuteDeleteAsync(cancellationToken);
+}
+
 public sealed class BatchRepository(ShrinkFrameDbContext db) : IBatchRepository
 {
     public async Task AddAsync(CompressionBatch batch, CancellationToken cancellationToken = default)

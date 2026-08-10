@@ -83,6 +83,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddPooledDbContextFactory<ShrinkFrameDbContext>(options => options.UseSqlite(connectionBuilder.ConnectionString));
         services.AddScoped(provider => provider.GetRequiredService<IDbContextFactory<ShrinkFrameDbContext>>().CreateDbContext());
         services.AddScoped<IImmichConnectionRepository, ImmichConnectionRepository>();
+        services.AddScoped<IImmichBrowserSelectionRepository, ImmichBrowserSelectionRepository>();
         services.AddScoped<IBatchRepository, BatchRepository>();
         services.AddScoped<ICompressionJobRepository, CompressionJobRepository>();
         services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();

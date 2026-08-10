@@ -68,7 +68,7 @@ Accessed 2026-08-10:
 | Ping | <https://api.immich.app/endpoints/server/pingServer> | Stable, public `GET /server/ping`; response contains required string `res` |
 | Version | <https://api.immich.app/endpoints/server/getServerVersion> | Stable, public `GET /server/version`; numeric `major`, `minor`, `patch`, and nullable numeric `prerelease` |
 | Current API key | <https://api.immich.app/endpoints/api-keys/getMyApiKey> | Stable authenticated `GET /api-keys/me`; returns ID, name, timestamps, and `Permission[]` |
-| Search metadata | <https://api.immich.app/endpoints/search/searchAssets> | Stable, `asset.read`; body supports `albumIds`, `takenAfter`, `takenBefore`, `order`, `page`, `size`, `type`, and `withExif`. Here `size` is page length, not file bytes. |
+| Search metadata | <https://api.immich.app/endpoints/search/searchAssets> | Stable, `asset.read`; body supports `albumIds`, `takenAfter`, `takenBefore`, `order`, `page`, `size`, `type`, `withDeleted`, and `withExif`. Here `size` is page length, not file bytes. ShrinkFrame sends `withDeleted=false` and also rejects trashed response items defensively. |
 | List albums/membership | <https://api.immich.app/endpoints/albums/getAllAlbums> | Stable, `album.read`; optional `assetId` finds containing albums |
 | Asset details | <https://api.immich.app/endpoints/assets/getAssetInfo> | Stable, `asset.read`; returns asset, capture-date, dimension, and EXIF information |
 | Thumbnail | <https://api.immich.app/endpoints/assets/viewAsset> | Stable, `asset.view` |
@@ -90,6 +90,15 @@ Do not use internal timeline endpoints or deprecated update endpoints. Before im
 - `search/metadata` has no byte-size predicate (`size` means page length), and the audited asset DTO does not promise file byte size. Do not present a global byte-size filter. A later implementation may add a documented bounded metadata/download-information lookup and then filter only that known result set.
 - Sort options must map to supported Immich `AssetOrder` values; unsupported size sorting must not be presented as server-global.
 - Preserve selected asset IDs independently of page DTOs.
+- Prompt 08 persists browser selection in SQLite as `(connectionId, assetId)`. Selection survives page,
+  filter, refresh, and Interactive Server reconnect changes, while the connection key prevents a later
+  batch from mixing sources. `Select Page` affects the visible post-refinement page only; no Select All
+  Results operation exists.
+- Supported global sorts are capture time ascending and descending, mapped to Immich `AssetOrder`
+  `asc` and `desc`. The v3.1 metadata asset DTO does not promise original byte size, so the checked-in
+  UI does not offer size filtering or size sorting. The application contract can refine a loaded page
+  by known byte sizes if a future version-matched operation supplies them; unknown sizes never pass
+  that refinement.
 
 ## Transfers
 

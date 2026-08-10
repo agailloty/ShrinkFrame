@@ -276,6 +276,7 @@ public static class ImmichServiceCollectionExtensions
             throw new InvalidOperationException("Immich connection options are outside the supported bounds.");
         services.AddSingleton(options);
         services.AddScoped<IImmichConnectionManager, ImmichConnectionManager>();
+        services.AddScoped<IImmichVideoBrowser, ImmichVideoBrowser>();
         return services;
     }
 }

@@ -34,6 +34,14 @@ public interface IImmichConnectionRepository
     Task DeleteAsync(ConnectionId id, CancellationToken cancellationToken = default);
 }
 
+public interface IImmichBrowserSelectionRepository
+{
+    Task<IReadOnlySet<string>> ListAsync(ConnectionId connectionId, CancellationToken cancellationToken = default);
+    Task AddAsync(ConnectionId connectionId, IEnumerable<string> assetIds, CancellationToken cancellationToken = default);
+    Task RemoveAsync(ConnectionId connectionId, IEnumerable<string> assetIds, CancellationToken cancellationToken = default);
+    Task ClearAsync(ConnectionId connectionId, CancellationToken cancellationToken = default);
+}
+
 public interface IBatchRepository
 {
     Task AddAsync(CompressionBatch batch, CancellationToken cancellationToken = default);

@@ -8,6 +8,7 @@ using ShrinkFrame.Infrastructure.Storage;
 using ShrinkFrame.Infrastructure.Media;
 using ShrinkFrame.Infrastructure.Immich;
 using ShrinkFrame.Web.BrowserUploads;
+using ShrinkFrame.Web.Immich;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -80,6 +81,7 @@ app.MapGet("/health", (IMediaToolStatus media) => media.Current.Available
     ? Results.Ok(new { status = "Healthy", media = media.Current })
     : Results.Json(new { status = "Unhealthy", media = media.Current }, statusCode: 503));
 app.MapBrowserUploads();
+app.MapImmichBrowser();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

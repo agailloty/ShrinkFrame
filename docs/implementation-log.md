@@ -1,5 +1,44 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 08: Immich video browser
+
+Summary:
+
+- Added typed application operations and handwritten internal Immich DTO mapping for 50-item video-only
+  metadata search, albums, asset details, and thumbnails. Searches explicitly send `type=VIDEO`,
+  `withDeleted=false`, and `withExif=true`, and defensively discard trashed or non-video response items.
+- Added global taken-period/album filters and supported capture-time ascending/descending sorts. Original
+  byte size is not promised by the v3.1 metadata asset DTO, so the UI honestly omits global size filtering
+  and sorting; the application model supports only a known-size, current-page refinement.
+- Added a Bootstrap gallery, explicit previous/next paging, proxied lazy thumbnails, details panel without
+  playback, Select current page, and Clear selection. SQLite stores source-stable asset IDs keyed by
+  connection, preserving selection through paging, filters, refresh, and Blazor reconnect without a
+  cross-connection selection path or Select All Results operation.
+- Added a same-origin thumbnail endpoint with no credential-bearing inputs. The server authenticates to
+  Immich using the decrypted saved key in the `x-api-key` header, validates an image content-type allowlist,
+  caps thumbnails at 5 MiB, copies with a 64 KiB buffer, propagates cancellation, and returns a short
+  browser cache policy.
+- Disabled/deleted/unvalidated or version-mismatched connections, rejected request contracts, missing
+  assets, key failures, timeouts, and upstream errors return stable actionable codes without key material.
+
+Decision deviations:
+
+- None. No live Immich instance was available; the connected 3.1.x contract probe remains a deployment
+  check, while the official current-v3 contract was re-audited on 2026-08-10.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — completed successfully.
+- `git diff --check` — completed without whitespace errors.
+
+Manual follow-up:
+
+- Against the deployment's compatible Immich 3.1.x server, browse at least two 50-item pages, combine
+  date and album filters, select on both pages, refresh/reconnect, inspect that browser requests contain
+  only ShrinkFrame thumbnail URLs, and disable/delete the connection mid-flow. Record the exact patch and
+  any generated OpenAPI differences.
+
 ## 2026-08-10 — Prompt 07: encrypted Immich connection management
 
 Summary:

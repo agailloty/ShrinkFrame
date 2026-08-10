@@ -133,3 +133,15 @@ internal sealed class PublicationAttemptConfiguration : IEntityTypeConfiguration
         builder.HasOne(x => x.Job).WithMany(x => x.PublicationAttempts).HasForeignKey(x => x.JobId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+internal sealed class ImmichBrowserSelectionConfiguration : IEntityTypeConfiguration<ImmichBrowserSelectionEntity>
+{
+    public void Configure(EntityTypeBuilder<ImmichBrowserSelectionEntity> builder)
+    {
+        builder.ToTable("ImmichBrowserSelections");
+        builder.HasKey(x => new { x.ConnectionId, x.AssetId });
+        builder.Property(x => x.AssetId).HasMaxLength(100);
+        builder.Property(x => x.SelectedAt).UtcTicks();
+        builder.HasOne<ImmichConnectionEntity>().WithMany().HasForeignKey(x => x.ConnectionId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
