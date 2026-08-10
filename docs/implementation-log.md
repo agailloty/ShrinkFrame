@@ -2,6 +2,39 @@
 
 Add newest entries at the top. Each entry must include date, prompt number, summary, verification commands, and any deviation from `decisions.md`.
 
+## 2026-08-10 — Prompt 03: SQLite persistence and durable queue
+
+Summary:
+
+- Added EF-free Application ports for connection, batch, job, progress, publication-attempt, initialization, and startup-recovery persistence.
+- Added EF Core SQLite entities, explicit mappings, committed initial migration, UTC-tick timestamps, string enum storage, metadata/audio/album/finding/progress/publication-attempt tables, queue/history/source indexes, and opaque artifact-key columns.
+- Added invariant-checking internal domain rehydration used only by Infrastructure so repository reads cannot construct invalid successful or publication states.
+- Added application-managed optimistic versions, stale-write detection, and an atomic `Queued` plus expected-version guarded update that claims a job by moving it to `Compressing`.
+- Added startup migration/WAL/busy-timeout/foreign-key initialization and idempotent recovery of acquisition, probing, compression, validation, and publication work. The one-process SQLite assumption and short-transaction boundary are documented.
+- Kept API-key plaintext out of the model. The only secret persistence field is an opaque encrypted byte envelope; encryption/decryption remains Prompt 07.
+- Added real-file SQLite integration tests for migrations/schema safety, repository round trips, optimistic concurrency, exclusive claim, WAL, and two recovery passes.
+
+Decision deviations:
+
+- None. EF Core `10.0.2` is used with `SQLitePCLRaw.bundle_e_sqlite3` `3.0.5` explicitly selected because EF's default native bundle resolved a version covered by high-severity advisory `GHSA-2m69-gcr7-jv3q`.
+
+Official behavior verified 2026-08-10:
+
+- EF Core SQLite provider limitations and migration locking: <https://learn.microsoft.com/en-us/ef/core/providers/sqlite/limitations>
+- EF Core runtime migration guidance: <https://learn.microsoft.com/en-us/ef/core/managing-schemas/migrations/applying>
+- EF Core guarded `ExecuteUpdate` concurrency pattern: <https://learn.microsoft.com/en-us/ef/core/saving/execute-insert-update-delete>
+- EF Core application-managed concurrency tokens for SQLite: <https://learn.microsoft.com/en-us/ef/core/saving/concurrency>
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln` — completed successfully after approved NuGet access; no vulnerability warnings remain.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build` — passed: 161 domain tests and 4 SQLite integration tests.
+- `dotnet list ShrinkFrame.sln package --vulnerable --include-transitive --no-restore` — no vulnerable packages reported in any project.
+- Fresh temporary database migration/schema inspection — migration created all expected tables and indexes; WAL and foreign-key checks passed; no video-byte or absolute-path columns exist.
+- Two consecutive recovery passes — first pass interrupted the active integration-test job; second pass changed zero rows, proving idempotence.
+- Two consecutive real Web startups against the same temporary database — both `/health` requests returned `Healthy`; the second startup reported the schema current and recovered zero jobs.
+
 ## 2026-08-10 — Prompt 02: domain model and tests
 
 Summary:

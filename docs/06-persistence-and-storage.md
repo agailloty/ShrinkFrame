@@ -20,6 +20,33 @@ Do not store video bytes, thumbnails, raw FFmpeg output without bounds, or plain
 
 SQLite is the durable queue. Claim work with a guarded update including expected state/concurrency token so a job is never intentionally owned twice. Multi-replica operation is unsupported.
 
+### Runtime configuration and inspection
+
+The application uses `ConnectionStrings:ShrinkFrame`. The checked-in production default is
+`Data Source=/data/shrinkframe.db;Default Timeout=5;Pooling=True`; Development uses
+`.local/shrinkframe.db`. Startup applies committed migrations, switches the database to WAL mode,
+sets a five-second busy timeout, enables foreign keys, and then marks active work interrupted.
+Startup migration and recovery assume exactly one ShrinkFrame process. Do not run multiple app
+instances against the same SQLite file. EF Core's SQLite migration lock is a safety net, not support
+for multiple application replicas.
+
+Database transactions are restricted to short persistence operations and guarded state changes.
+Network transfers, filesystem I/O, ffprobe, and FFmpeg must run outside database transactions.
+
+For a disposable developer database:
+
+```powershell
+$db = Join-Path $env:TEMP "shrinkframe-inspect.db"
+dotnet ef database update --project src/ShrinkFrame.Infrastructure/ShrinkFrame.Infrastructure.csproj --startup-project src/ShrinkFrame.Web/ShrinkFrame.Web.csproj --context ShrinkFrameDbContext --connection "Data Source=$db;Default Timeout=5;Pooling=False"
+sqlite3 $db ".tables"
+sqlite3 $db ".schema Jobs"
+sqlite3 $db "PRAGMA journal_mode; PRAGMA foreign_key_check; SELECT MigrationId FROM __EFMigrationsHistory;"
+```
+
+The `sqlite3` commands require the SQLite CLI. With DB Browser for SQLite, open the same disposable
+file read-only and inspect `Jobs`, its indexes, and `__EFMigrationsHistory`. Stored artifact values
+must be opaque relative keys; no video payload or absolute-path column is part of the schema.
+
 ## Work storage layout
 
 The implementation is behind `IWorkStorage`. A suggested physical layout is:

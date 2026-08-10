@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
 using ShrinkFrame.Web.Components;
 using ShrinkFrame.Web.Configuration;
+using ShrinkFrame.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,9 @@ builder.Services.AddOptions<WorkerOptions>()
     .BindConfiguration(WorkerOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddShrinkFrameSqlite(
+    builder.Configuration.GetConnectionString("ShrinkFrame")
+        ?? throw new InvalidOperationException("ConnectionStrings:ShrinkFrame is required."));
 
 var app = builder.Build();
 

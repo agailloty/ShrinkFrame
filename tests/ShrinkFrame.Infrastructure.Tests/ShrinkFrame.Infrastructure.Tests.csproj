@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CA1707;CA1861;MSTEST0037</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShrinkFrame.Application\ShrinkFrame.Application.csproj" />
+    <ProjectReference Include="..\..\src\ShrinkFrame.Domain\ShrinkFrame.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ShrinkFrame.Infrastructure\ShrinkFrame.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -22,6 +22,16 @@ public sealed class ImmichConnection
     public string? LastTestError { get; private set; }
     public void RecordTest(DateTimeOffset at, string? version, CompatibilityResult result, string? error)
         => (LastTestedAt, DetectedVersion, Compatibility, LastTestError) = (at, version, result, error);
+
+    internal static ImmichConnection Restore(ConnectionId id, string displayName, Uri baseUrl,
+        bool allowInvalidCertificate, bool enabled, bool isDefault, DateTimeOffset? lastTestedAt,
+        string? detectedVersion, CompatibilityResult compatibility, string? lastTestError)
+    {
+        var connection = new ImmichConnection(id, displayName, baseUrl, allowInvalidCertificate, enabled, isDefault);
+        if (lastTestedAt.HasValue)
+            connection.RecordTest(lastTestedAt.Value, detectedVersion, compatibility, lastTestError);
+        return connection;
+    }
 }
 
 public sealed class CompressionBatch
@@ -47,6 +57,19 @@ public sealed class CompressionBatch
         if (source.Kind != SourceKind || source.ConnectionId != ConnectionId) throw new DomainException(DomainErrors.InvalidBatchSource, "Job source must match its batch.");
         if (!jobIds.Contains(id)) jobIds.Add(id);
         UpdatedAt = now;
+    }
+
+    internal static CompressionBatch Restore(BatchId id, string name, SourceKind sourceKind,
+        ConnectionId? connectionId, CompressionOptions defaultOptions, BatchStatus status,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, IEnumerable<JobId> jobs)
+    {
+        var batch = new CompressionBatch(id, name, sourceKind, connectionId, defaultOptions, createdAt)
+        {
+            Status = status,
+            UpdatedAt = updatedAt,
+        };
+        batch.jobIds.AddRange(jobs.Distinct());
+        return batch;
     }
 }
 
@@ -126,5 +149,40 @@ public sealed class CompressionJob
     {
         if (PublicationState != PublicationState.Publishing) throw new DomainException(DomainErrors.InvalidPublicationTransition, "Only active publication can fail.");
         PublicationState = PublicationState.Failed; UpdatedAt = now;
+    }
+
+
+    internal static CompressionJob Restore(JobId id, BatchId batchId, VideoSourceRef source,
+        PresetId presetId, CompressionOptions effectiveOptions, JobState state,
+        PublicationState publicationState, bool publicationOverride, string? publishedAssetId,
+        VideoMetadata? originalMetadata, ArtifactRef? sourceArtifact, ArtifactRef? outputArtifact,
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, IEnumerable<ValidationFinding> restoredFindings)
+    {
+        if (!Enum.IsDefined(state) || !Enum.IsDefined(publicationState))
+            throw new DomainException(DomainErrors.InvalidJobTransition, "Persisted job state is invalid.");
+        if (state is JobState.Queued or JobState.Compressing or JobState.Validating or JobState.Ready or JobState.NotBeneficial
+            && originalMetadata is null)
+            throw new DomainException(DomainErrors.JobNotValidated, "Persisted active or completed job requires probed metadata.");
+        if (state is JobState.Ready or JobState.NotBeneficial && outputArtifact is null)
+            throw new DomainException(DomainErrors.JobNotValidated, "Persisted successful job requires an output artifact.");
+        if (publicationState is PublicationState.Published or PublicationState.PartiallyPublished
+            && string.IsNullOrWhiteSpace(publishedAssetId))
+            throw new DomainException(DomainErrors.InvalidPublicationTransition, "Persisted publication requires an asset ID.");
+        if (publicationOverride && state != JobState.NotBeneficial)
+            throw new DomainException(DomainErrors.InvalidPublicationTransition, "Persisted publication override is invalid.");
+
+        var job = new CompressionJob(id, batchId, source, presetId, effectiveOptions, createdAt)
+        {
+            State = state,
+            PublicationState = publicationState,
+            NotBeneficialPublicationOverride = publicationOverride,
+            PublishedAssetId = publishedAssetId,
+            OriginalMetadata = originalMetadata,
+            SourceArtifact = sourceArtifact,
+            OutputArtifact = outputArtifact,
+            UpdatedAt = updatedAt,
+        };
+        job.findings.AddRange(restoredFindings);
+        return job;
     }
 }
