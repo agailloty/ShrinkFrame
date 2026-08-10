@@ -1,5 +1,53 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 06: browser streaming upload
+
+Summary:
+
+- Added raw-body ASP.NET Core endpoints for persistent browser batches and one independently streamed
+  request per file, with a configurable 20 GiB default limit, a pooled bounded buffer, byte counting,
+  SHA-256 tracking, create-new partial writes, and atomic finalization.
+- Integrated ffprobe after upload finalization. Playable media records its metadata and opaque source
+  artifact; invalid media, oversized bodies, connection aborts, and acquisition failures retain a
+  stable error job while removing partial and finalized source bytes.
+- Added repository batch-job listing and a server-only artifact path resolver so refresh restoration and
+  process invocation do not expose physical paths through browser DTOs.
+- Replaced the New Batch placeholder with an accessible drag/drop and multi-picker UI. JavaScript sends
+  `File` objects directly to HTTP, reports per-file progress to Blazor, supports remove/retry, restarts
+  retries from zero, and restores the current session batch from SQLite after refresh/reconnect.
+- Protected batch creation and upload with ASP.NET Core antiforgery endpoint metadata plus explicit
+  configured Origin and matching Host validation. Filenames remain display metadata and never select a
+  storage path.
+
+Decision deviations:
+
+- None. Completed browser acquisitions remain in `Probing` until the later wizard milestone performs
+  the documented confirmation/queue transition; no compression worker is started by this milestone.
+
+Official behavior verified 2026-08-10:
+
+- ASP.NET Core 10 antiforgery middleware validates POST endpoints carrying `IAntiforgeryMetadata` with
+  `RequiresValidation=true`: <https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-10.0>
+- Kestrel defaults request bodies to approximately 28.6 MiB and permits a pre-read per-request override
+  through `IHttpMaxRequestBodySizeFeature`: <https://learn.microsoft.com/en-us/aspnet/core/fundamentals/servers/kestrel/security-considerations?view=aspnetcore-10.0>
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-restore` — passed 163 Domain and 20 Infrastructure tests.
+- Valid 10,995-byte H.264 MP4 named `video & [x].mp4` — probed successfully, returned its byte count and
+  SHA-256, persisted as a separate job, and left exactly one finalized artifact.
+- Invalid text upload — returned HTTP 422, retained `upload.not_video`, preserved the metacharacter display
+  name, and left no artifact.
+- Configured 1,024-byte limit with the valid 10,995-byte MP4 — returned HTTP 413, retained
+  `upload.file_too_large`, and left no artifact.
+- Foreign `Origin` with a valid antiforgery token — returned HTTP 403 and created no batch.
+
+Manual follow-up:
+
+- Browser UI drag/drop, live progress, deliberate mid-transfer abort, reconnect rendering, and bounded
+  process-memory observation require an interactive browser and should be repeated on the deployment host.
+
 ## 2026-08-10 — Prompt 04: work storage and capacity
 
 Summary:

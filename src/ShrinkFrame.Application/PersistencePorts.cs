@@ -41,6 +41,7 @@ public interface ICompressionJobRepository
 {
     Task<Versioned<CompressionJob>> AddAsync(CompressionJob job, CancellationToken cancellationToken = default);
     Task<Versioned<CompressionJob>?> GetAsync(JobId id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Versioned<CompressionJob>>> ListByBatchAsync(BatchId batchId, CancellationToken cancellationToken = default);
     Task<long> UpdateAsync(CompressionJob job, long expectedVersion, CancellationToken cancellationToken = default);
     Task<Versioned<CompressionJob>?> TryClaimAsync(JobId id, JobState expectedState, long expectedVersion,
         DateTimeOffset claimedAt, CancellationToken cancellationToken = default);

@@ -123,6 +123,15 @@ public sealed class CompressionJob
         State = target; UpdatedAt = now;
     }
     public void RecordProbe(VideoMetadata metadata, ArtifactRef sourceArtifact) => (OriginalMetadata, SourceArtifact) = (metadata, sourceArtifact);
+    public void Fail(string code, string message, DateTimeOffset now)
+    {
+        if (State is not (JobState.Acquiring or JobState.Probing))
+            throw new DomainException(DomainErrors.InvalidJobTransition, "Only acquisition or probing can fail here.");
+        findings.Clear();
+        findings.Add(new ValidationFinding(code, FindingSeverity.Blocking, message));
+        State = JobState.Failed;
+        UpdatedAt = now;
+    }
     public void CompleteValidation(long outputBytes, ArtifactRef output, IEnumerable<ValidationFinding> validationFindings, DateTimeOffset now)
     {
         if (State != JobState.Validating || OriginalMetadata is null) throw new DomainException(DomainErrors.InvalidJobTransition, "Job must be validating with probed metadata.");

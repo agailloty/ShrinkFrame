@@ -54,3 +54,9 @@ public interface IWorkStorageStartupValidator
 {
     Task ValidateAsync(CancellationToken cancellationToken = default);
 }
+
+// Internal process adapters need a server-generated path. This value must never cross an HTTP boundary.
+public interface IArtifactPathResolver
+{
+    string ResolveExisting(ArtifactRef artifact);
+}

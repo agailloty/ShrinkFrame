@@ -23,6 +23,25 @@ The POC has no authentication and must be deployed only on a trusted LAN or Tail
 - Protect against CSRF-style LAN attacks by validating Origin/Host for mutating browser requests and documenting allowed hosts.
 - Set security headers appropriate to a self-hosted Blazor application.
 
+### Browser upload request policy
+
+Browser acquisition uses one raw-body `POST` per file under `/api/browser-batches/{batchId}/files`.
+The browser first obtains an ASP.NET Core antiforgery token and sends its request half in the
+`RequestVerificationToken` header; the cookie half remains same-site. Both batch creation and file
+upload carry `RequireAntiforgeryTokenAttribute` endpoint metadata. The upload never uses form or
+`IFormFile` binding.
+
+All mutating browser-batch requests must also provide an `Origin` that exactly matches an entry in
+`BrowserUploads:AllowedOrigins`. Its authority must equal the request `Host`. Empty, malformed,
+foreign, or Host-mismatched origins receive `request.origin.rejected`. Deployments using a hostname,
+IP address, port, or reverse-proxy origin other than the checked-in local defaults must configure the
+complete public HTTP(S) origin explicitly. ASP.NET Core host filtering remains an additional deployment
+control through `AllowedHosts`.
+
+The per-file limit is `BrowserUploads:MaximumFileSizeBytes` (20 GiB by default). The endpoint raises
+Kestrel's per-request body limit before reading and independently counts streamed bytes, so both known
+and unknown content lengths are bounded. `BrowserUploads:BufferSizeBytes` bounds the pooled copy buffer.
+
 ## SSRF and Immich URLs
 
 The user intentionally configures LAN destinations, so generic private-address blocking is inappropriate. Still:

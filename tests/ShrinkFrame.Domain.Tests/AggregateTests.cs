@@ -86,6 +86,18 @@ public sealed class AggregateTests
     }
 
     [TestMethod]
+    public void Acquisition_failure_retains_a_stable_blocking_error()
+    {
+        var job = NewJob();
+        job.TransitionTo(JobState.Acquiring, Now);
+        job.Fail("upload.file_too_large", "The file is too large.", Now);
+        Assert.AreEqual(JobState.Failed, job.State);
+        Assert.AreEqual("upload.file_too_large", job.BlockingFindings.Single().Code);
+        OptionsAndPolicyTests.AssertCode(DomainErrors.InvalidJobTransition,
+            () => job.Fail("upload.failed", "Again.", Now));
+    }
+
+    [TestMethod]
     public void Not_beneficial_publication_needs_explicit_override()
     {
         var job = ValidatingJob(); job.CompleteValidation(100, new("output/a"), [], Now);

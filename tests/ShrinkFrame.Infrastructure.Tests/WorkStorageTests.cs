@@ -113,6 +113,19 @@ public sealed class WorkStorageTests
     }
 
     [TestMethod]
+    public async Task Existing_artifact_path_is_server_resolved_and_never_the_opaque_key()
+    {
+        using var fixture = new StorageFixture();
+        var allocation = fixture.Storage.Allocate(BatchId.New(), JobId.New(), ArtifactKind.Source);
+        await fixture.Storage.CopyToNewAsync(new MemoryStream([1, 2, 3]), allocation.Partial);
+        await fixture.Storage.FinalizeAsync(allocation.Partial, allocation.Final);
+        var path = fixture.Storage.ResolveExisting(allocation.Final);
+        Assert.IsTrue(Path.IsPathFullyQualified(path));
+        Assert.AreNotEqual(allocation.Final.Key, path);
+        Assert.AreEqual(3, new FileInfo(path).Length);
+    }
+
+    [TestMethod]
     public void Capacity_overflow_cannot_be_forced()
     {
         var service = new DiskCapacityService(new FakeReporter(long.MaxValue), new WorkStorageOptions

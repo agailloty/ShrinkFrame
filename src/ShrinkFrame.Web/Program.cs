@@ -6,6 +6,7 @@ using ShrinkFrame.Application;
 using ShrinkFrame.Infrastructure.Persistence;
 using ShrinkFrame.Infrastructure.Storage;
 using ShrinkFrame.Infrastructure.Media;
+using ShrinkFrame.Web.BrowserUploads;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,15 @@ builder.Services.AddOptions<WorkerOptions>()
     .BindConfiguration(WorkerOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.AddOptions<BrowserUploadOptions>()
+    .BindConfiguration(BrowserUploadOptions.SectionName)
+    .ValidateDataAnnotations()
+    .Validate(options => options.AllowedOrigins.All(value => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && uri.Scheme is "http" or "https" && string.IsNullOrEmpty(uri.PathAndQuery.Trim('/'))),
+        "BrowserUploads:AllowedOrigins must contain only absolute HTTP(S) origins without paths.")
+    .ValidateOnStart();
+builder.Services.AddScoped<BrowserUploadService>();
+builder.Services.AddScoped<SameOriginFilter>();
 builder.Services.AddShrinkFrameSqlite(
     builder.Configuration.GetConnectionString("ShrinkFrame")
         ?? throw new InvalidOperationException("ConnectionStrings:ShrinkFrame is required."));
@@ -65,6 +75,7 @@ app.MapStaticAssets();
 app.MapGet("/health", (IMediaToolStatus media) => media.Current.Available
     ? Results.Ok(new { status = "Healthy", media = media.Current })
     : Results.Json(new { status = "Unhealthy", media = media.Current }, statusCode: 503));
+app.MapBrowserUploads();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

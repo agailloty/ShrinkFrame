@@ -9,9 +9,6 @@ public sealed class StorageOptions
     [Required]
     public string WorkRoot { get; init; } = "/data/work";
 
-    [Range(1, 100)]
-    public int MaximumFileSizeGigabytes { get; init; } = 20;
-
     [Range(0, long.MaxValue)]
     public long ReserveBytes { get; init; } = 5L * 1024 * 1024 * 1024;
 

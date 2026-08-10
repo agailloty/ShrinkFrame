@@ -12,6 +12,7 @@ public static class StorageServiceCollectionExtensions
         services.AddSingleton<LocalWorkStorage>();
         services.AddSingleton<IWorkStorage>(provider => provider.GetRequiredService<LocalWorkStorage>());
         services.AddSingleton<IWorkStorageStartupValidator>(provider => provider.GetRequiredService<LocalWorkStorage>());
+        services.AddSingleton<IArtifactPathResolver>(provider => provider.GetRequiredService<LocalWorkStorage>());
         services.AddSingleton<IStorageCapacityReporter, LocalStorageCapacityReporter>();
         services.AddSingleton<IDiskCapacityService, DiskCapacityService>();
         services.AddHostedService<WorkStorageStartupService>();

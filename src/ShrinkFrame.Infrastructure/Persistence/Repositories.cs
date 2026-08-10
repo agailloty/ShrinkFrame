@@ -69,6 +69,13 @@ public sealed class CompressionJobRepository(ShrinkFrameDbContext db) : ICompres
         return entity is null ? null : new(PersistenceMapper.ToDomain(entity), entity.Version);
     }
 
+    public async Task<IReadOnlyList<Versioned<CompressionJob>>> ListByBatchAsync(BatchId batchId, CancellationToken cancellationToken = default)
+    {
+        var entities = await JobQuery().AsNoTracking().Where(x => x.BatchId == batchId.Value)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(cancellationToken);
+        return entities.Select(x => new Versioned<CompressionJob>(PersistenceMapper.ToDomain(x), x.Version)).ToArray();
+    }
+
     public async Task<long> UpdateAsync(CompressionJob job, long expectedVersion, CancellationToken cancellationToken = default)
     {
         var entity = await JobQuery().SingleOrDefaultAsync(x => x.Id == job.Id.Value, cancellationToken)

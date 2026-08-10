@@ -1,5 +1,147 @@
 @page "/new-batch"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
 <PageTitle>New Batch</PageTitle>
 <h1>New Batch</h1>
-<p>Batch creation will be added in a later milestone.</p>
+
+<section class="mb-4" aria-labelledby="source-heading">
+    <h2 id="source-heading" class="h4">1. Source</h2>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" checked id="browser-source" />
+        <label class="form-check-label" for="browser-source">Browser upload</label>
+    </div>
+    <label class="form-label mt-3" for="batch-name">Batch name</label>
+    <input id="batch-name" class="form-control" maxlength="300" @bind="batchName" />
+</section>
+
+<section aria-labelledby="videos-heading">
+    <h2 id="videos-heading" class="h4">2. Select videos</h2>
+    <div @ref="dropZone" class="upload-drop-zone" tabindex="0" role="button"
+         aria-label="Drop video files here or open the file picker">
+        <p class="mb-2">Drag and drop video files here</p>
+        <button type="button" class="btn btn-outline-primary" @onclick="OpenPickerAsync">Choose files</button>
+        <input data-upload-picker type="file" multiple class="visually-hidden" />
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(pageError))
+    {
+        <div class="alert alert-danger mt-3" role="alert"><strong>@pageErrorCode</strong> @pageError</div>
+    }
+
+    @if (files.Count > 0)
+    {
+        <div class="table-responsive mt-3">
+            <table class="table align-middle">
+                <thead><tr><th>File</th><th>Status</th><th>Progress</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                @foreach (var file in files)
+                {
+                    <tr @key="file.ClientId">
+                        <td class="text-break">@file.FileName</td>
+                        <td>@file.State@if (!string.IsNullOrEmpty(file.ErrorCode))
+                            {
+                                <div class="text-danger small">@file.ErrorCode: @file.ErrorMessage</div>
+                            }
+                        </td>
+                        <td style="min-width: 12rem">
+                            <div class="progress" role="progressbar" aria-label="Upload progress for @file.FileName" aria-valuenow="@file.Progress" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar" style="width: @(file.Progress)%">@(file.Progress)%</div>
+                            </div>
+                        </td>
+                        <td class="text-end">
+                            @if (file.CanRetry)
+                            {
+                                <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => RetryAsync(file.ClientId)">Retry</button>
+                            }
+                            @if (!file.IsUploading)
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveAsync(file.ClientId)">Remove</button>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-primary" disabled="@files.All(x => x.IsServerKnown || x.IsUploading)" @onclick="UploadAsync">Upload selected files</button>
+    }
+</section>
+
+@code {
+    private ElementReference dropZone;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<NewBatch>? self;
+    private string batchName = $"Browser upload {DateTime.Now:yyyy-MM-dd HH:mm}";
+    private readonly List<UploadRow> files = [];
+    private string? pageErrorCode;
+    private string? pageError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        module = await JS.InvokeAsync<IJSObjectReference>("import", "./browser-uploads.js");
+        self = DotNetObjectReference.Create(this);
+        await module.InvokeVoidAsync("initialize", dropZone, self);
+        await module.InvokeVoidAsync("restore");
+    }
+
+    private async Task OpenPickerAsync() => await module!.InvokeVoidAsync("openPicker");
+    private async Task UploadAsync() => await module!.InvokeVoidAsync("uploadAll", batchName);
+    private async Task RetryAsync(string id) => await module!.InvokeVoidAsync("retry", id, batchName);
+    private async Task RemoveAsync(string id) { await module!.InvokeVoidAsync("remove", id); files.RemoveAll(x => x.ClientId == id); }
+
+    [JSInvokable]
+    public void FilesSelected(UploadFileInfo[] selected)
+    {
+        foreach (var item in selected)
+            if (files.All(x => x.ClientId != item.ClientId)) files.Add(new(item.ClientId, item.FileName, "Ready", 0));
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void UploadProgress(string clientId, int percentage)
+    {
+        var file = files.FirstOrDefault(x => x.ClientId == clientId);
+        if (file is not null) { file.State = "Uploading"; file.Progress = percentage; file.IsUploading = true; StateHasChanged(); }
+    }
+
+    [JSInvokable]
+    public void UploadCompleted(string clientId, string state, string? errorCode, string? errorMessage)
+    {
+        var file = files.FirstOrDefault(x => x.ClientId == clientId);
+        if (file is not null) { file.State = state; file.Progress = errorCode is null ? 100 : file.Progress; file.ErrorCode = errorCode; file.ErrorMessage = errorMessage; file.IsUploading = false; file.IsServerKnown = true; StateHasChanged(); }
+    }
+
+    [JSInvokable]
+    public void ServerState(ServerBatchState state)
+    {
+        batchName = state.Name;
+        files.Clear();
+        files.AddRange(state.Files.Select(x => new UploadRow(x.JobId.ToString(), x.FileName, x.State, x.State == "Probing" ? 100 : 0)
+        { ErrorCode = x.ErrorCode, ErrorMessage = x.ErrorMessage, IsServerKnown = true, HasLocalFile = false }));
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void PageError(string code, string message) { pageErrorCode = code; pageError = message; StateHasChanged(); }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null) await module.DisposeAsync();
+        self?.Dispose();
+    }
+
+    public sealed record UploadFileInfo(string ClientId, string FileName, long Size);
+    public sealed record ServerBatchState(Guid BatchId, string Name, ServerFileState[] Files);
+    public sealed record ServerFileState(Guid JobId, string FileName, string State, long? BytesReceived, string? ErrorCode, string? ErrorMessage);
+    private sealed class UploadRow(string clientId, string fileName, string state, int progress)
+    {
+        public string ClientId { get; } = clientId; public string FileName { get; } = fileName;
+        public string State { get; set; } = state; public int Progress { get; set; } = progress;
+        public string? ErrorCode { get; set; } public string? ErrorMessage { get; set; }
+        public bool IsUploading { get; set; } public bool IsServerKnown { get; set; }
+        public bool HasLocalFile { get; set; } = true;
+        public bool CanRetry => ErrorCode is not null && !IsUploading && HasLocalFile;
+    }
+}

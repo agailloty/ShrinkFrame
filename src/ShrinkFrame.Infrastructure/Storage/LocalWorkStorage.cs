@@ -5,7 +5,7 @@ using ShrinkFrame.Domain;
 
 namespace ShrinkFrame.Infrastructure.Storage;
 
-public sealed class LocalWorkStorage : IWorkStorage, IWorkStorageStartupValidator
+public sealed class LocalWorkStorage : IWorkStorage, IWorkStorageStartupValidator, IArtifactPathResolver
 {
     private readonly string root;
     private readonly string rootPrefix;
@@ -59,6 +59,8 @@ public sealed class LocalWorkStorage : IWorkStorage, IWorkStorageStartupValidato
             bufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
         return Task.FromResult(stream);
     }
+
+    public string ResolveExisting(ArtifactRef artifact) => Resolve(artifact, allowMissingLeaf: false);
 
     public async Task<long> CopyToNewAsync(Stream source, ArtifactRef partialArtifact, CancellationToken cancellationToken = default)
     {

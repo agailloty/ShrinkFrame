@@ -116,6 +116,18 @@ configuration:
    Confirm the 2,200-byte estimate warns, requires an explicit force value, and that the force value is
    saved on the batch. Overflow remains non-admissible even when force is requested.
 
+### Browser upload checks
+
+Set `BrowserUploads:MaximumFileSizeBytes` to a small disposable-test value and use the New Batch page.
+Verify a valid video (including a name such as `video & [x].mp4`) becomes a persistent probed job and
+has one finalized opaque source artifact. An invalid file must leave a `Failed` job with
+`upload.not_video` and no source artifact. A file over the configured limit must return HTTP 413,
+retain `upload.file_too_large`, and leave neither partial nor final bytes. Interrupt a throttled request
+after it begins; the job must retain `upload.aborted` or `upload.failed`, no artifact may remain, and
+Retry must send the local file again from byte zero. Reloading the page in the same tab restores the
+current batch and all server-known jobs from SQLite; browser file handles intentionally cannot survive
+a reload.
+
 ## Retention and deletion
 
 - Browser-uploaded sources remain while they can support retry/recompression.
