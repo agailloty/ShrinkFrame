@@ -5,6 +5,7 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CA1707;CA1806;MSTEST0037</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

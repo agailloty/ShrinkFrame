@@ -2,6 +2,26 @@
 
 Add newest entries at the top. Each entry must include date, prompt number, summary, verification commands, and any deviation from `decisions.md`.
 
+## 2026-08-10 — Prompt 02: domain model and tests
+
+Summary:
+
+- Implemented a persistence-ignorant domain containing typed connection, batch, job, and preset identifiers; connection metadata; batch and compression-job aggregates; source, media, progress, artifact, finding, publication, and option value objects; and stable machine-readable domain error codes.
+- Added explicit guarded job and publication operations, including probed-input queue guards, validation-only successful completion, restart interruption and retry paths, published-asset-before-album-completion ordering, partial-publication retry, and an explicit persisted override before publishing a `NotBeneficial` result.
+- Added seven immutable built-in presets and per-batch/per-job effective option copies so later preset changes cannot alter existing snapshots.
+- Added pure validation and policy rules for CRF 18–36 with warnings above 30, safe suffixes and output filenames, maximum-resolution scaling on the long display dimension, even dimensions without upscaling, MP4 audio compatibility selection, duration tolerance, output benefit classification, blocking versus warning findings, and forced capacity admission.
+- Replaced the placeholder test with exhaustive allowed/rejected job-transition matrix coverage and boundary tests for all mandatory Prompt 02 behaviors.
+
+Decision deviations:
+
+- None. Maximum-resolution labels are interpreted exactly as documented: the enum value caps the long display dimension, including portrait inputs.
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln` — completed successfully after approved NuGet network access.
+- `dotnet test tests/ShrinkFrame.Domain.Tests/ShrinkFrame.Domain.Tests.csproj --configuration Release --no-restore` — passed: 161 tests, 0 failed, 0 skipped.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+
 ## 2026-08-10 — Prompt 01: solution bootstrap
 
 Summary:
