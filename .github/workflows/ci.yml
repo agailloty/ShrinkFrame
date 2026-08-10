@@ -21,7 +21,11 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: "**/packages.lock.json"
-      - name: Restore
+      - name: Verify dependency lock files
+        run: |
+          dotnet restore ShrinkFrame.sln --force-evaluate
+          git diff --exit-code -- ':(glob)**/packages.lock.json'
+      - name: Restore locked dependencies
         run: dotnet restore ShrinkFrame.sln --locked-mode
       - name: Build Release
         run: dotnet build ShrinkFrame.sln --configuration Release --no-restore

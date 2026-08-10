@@ -12,9 +12,21 @@ Framework contract verification:
 
 - Verified on 2026-08-10 against the official Microsoft .NET 10 download page that SDK `10.0.302`, released 2026-07-14, is the latest stable .NET 10 SDK: <https://dotnet.microsoft.com/en-us/download/dotnet/10.0>.
 
-Lock-file reconciliation:
+Lock-file and build-pipeline audit:
 
-- Removed the preview-SDK-generated `Microsoft.AspNetCore.App.Internal.Assets` entry from the Web project lock file. It is not a package dependency produced by the stable `10.0.302` SDK and caused stable locked-mode restore to fail with `NU1004`.
+- Found that `Microsoft.AspNetCore.App.Internal.Assets` is an SDK-managed ASP.NET Core static-framework-assets pack whose implicit NuGet presence differed between the GitHub `setup-dotnet` installation and the SDK container distribution. Alternately adding and removing it from the lock file therefore made one environment pass and the other fail with `NU1004`.
+- Made the assets package an explicit private Web-project dependency, centrally pinned to the runtime-aligned version `10.0.10`. The dependency graph is now identical even when an SDK distribution already contains the pack locally.
+- Added a CI lock-file freshness gate that performs an intentional `--force-evaluate` restore and fails on any resulting `packages.lock.json` diff before performing the normal locked restore.
+- Audited all six project lock files with SDK `10.0.302`; a second force-evaluated restore was byte-for-byte idempotent, followed by a successful locked restore.
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln --force-evaluate` with SDK `10.0.302` - succeeded and stabilized all lock files.
+- Repeated force-evaluated restore - succeeded with byte-for-byte identical lock files.
+- `dotnet restore ShrinkFrame.sln --locked-mode` - succeeded for all six projects.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` - succeeded with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` - passed 209 tests: 167 Domain and 42 Infrastructure, zero failed/skipped.
+- `docker compose config --quiet` - succeeded.
 
 ## 2026-08-10 — Version 1.0 interface refresh
 
