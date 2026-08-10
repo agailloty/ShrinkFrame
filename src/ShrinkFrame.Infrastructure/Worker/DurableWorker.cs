@@ -120,7 +120,8 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
             var metadata = new VideoMetadata(detail.FileName, detail.MimeType ?? download.MimeType, bytes, probe.Duration,
                 video.Width ?? throw new InvalidDataException("Primary video width is missing."), video.Height ?? throw new InvalidDataException("Primary video height is missing."),
                 video.CodecName, probe.Streams.Where(x => x.CodecType == "audio").Select(x => x.CodecName).ToArray(),
-                probe.CaptureTime ?? detail.TakenAt, probe.EffectiveRotation, detail.Description, detail.Latitude, detail.Longitude, detail.AlbumIds);
+                probe.CaptureTime ?? detail.TakenAt, probe.EffectiveRotation, detail.Description, detail.Latitude, detail.Longitude,
+                detail.AlbumIds, detail.ModifiedAt);
             job.RecordProbe(metadata, allocation.Final); job.TransitionTo(JobState.Queued, time.GetUtcNow());
             await services.GetRequiredService<ICompressionJobRepository>().UpdateAsync(job, version, shutdown);
             var done = new JobProgressSnapshot(new TransferProgress(bytes, bytes), null, time.GetUtcNow()); progressHub.Report(job.Id, done); await PersistProgressAsync(job.Id, done, shutdown);

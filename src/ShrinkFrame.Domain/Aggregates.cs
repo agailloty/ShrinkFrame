@@ -248,6 +248,12 @@ public sealed class CompressionJob
         if (PublicationState != PublicationState.Publishing || string.IsNullOrWhiteSpace(PublishedAssetId)) throw new DomainException(DomainErrors.InvalidPublicationTransition, "Published asset must be recorded first.");
         PublicationState = albumsSynchronized ? PublicationState.Published : PublicationState.PartiallyPublished; UpdatedAt = now;
     }
+    public void ReleasePublishedImmichSource(DateTimeOffset now)
+    {
+        if (PublicationState != PublicationState.Published || Source.Kind != SourceKind.Immich)
+            throw new DomainException(DomainErrors.InvalidPublicationTransition, "Only a published Immich job can release its local source copy.");
+        SourceArtifact = null; UpdatedAt = now;
+    }
     public void FailPublication(DateTimeOffset now)
     {
         if (PublicationState != PublicationState.Publishing) throw new DomainException(DomainErrors.InvalidPublicationTransition, "Only active publication can fail.");

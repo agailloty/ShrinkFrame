@@ -1,5 +1,115 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 12: Immich publication
+
+Summary:
+
+- Re-verified the official Immich 3.1 stable contracts for multipart `POST /api/assets`, SHA-1
+  `POST /api/assets/bulk-upload-check`, album membership lookup, and `PUT /api/albums/{id}/assets`.
+  Confirmed that generic stable metadata keys do not define EXIF description/coordinates and that the direct
+  asset DTO endpoints exposing those fields are deprecated. ShrinkFrame does not call deprecated update APIs;
+  it persists and displays `publication.metadata.not_guaranteed` when those fields exist in the source snapshot.
+- Added grouped manual publication with per-result `NotBeneficial` force confirmation. Immich batches are
+  hard-locked to their source connection; browser batches can select only enabled, compatible, publish-capable
+  connections. API keys remain decrypted only inside Infrastructure and are sent only in `x-api-key` headers.
+- Added bounded streaming SHA-1 calculation and multipart upload. A durable checkpoint stores destination,
+  client attempt ID, checksum, ambiguity flag, warnings, and pending album IDs. Every attempt checks the checksum
+  first; an ambiguous timeout/transport failure is never blindly replayed. Existing non-trashed matches are
+  adopted, while trashed matches require operator action.
+- Persisted the returned asset ID on the job before any album operation. Album success removes and persists one
+  pending ID at a time; failure retains the new asset as `PartiallyPublished`, and retry skips upload and attempts
+  only pending albums. Publication state/warnings/pending albums restore after UI reconnect.
+- After complete Immich-source publication, deletes only the server-owned local source artifact and clears that
+  artifact reference; the output remains. Cleanup failure is retained as an explicit warning. Corrected startup
+  recovery so interrupted publication becomes `Failed` without incorrectly changing the completed media state
+  to `Interrupted`.
+- Added the `AddImmichPublication` migration and automated scenarios for partial album retry without re-upload,
+  ambiguous upload checksum adoption without replay, cross-instance rejection before network access, forced
+  `NotBeneficial`, metadata warnings, source-only cleanup, and output retention.
+
+Official contracts verified 2026-08-10:
+
+- Upload: <https://api.immich.app/endpoints/assets/uploadAsset>
+- Bulk upload check: <https://api.immich.app/endpoints/assets/checkBulkUpload>
+- Bulk check item/result: <https://api.immich.app/models/AssetBulkUploadCheckItem> and
+  <https://api.immich.app/models/AssetBulkUploadCheckResult>
+- Add to album: <https://api.immich.app/endpoints/albums/addAssetsToAlbum>
+- Stable generic metadata: <https://api.immich.app/endpoints/assets/updateAssetMetadata>
+- Deprecated direct asset update: <https://api.immich.app/endpoints/assets/updateAsset>
+
+Decision clarification:
+
+- Stable Immich 3.1 APIs cannot guarantee post-upload description/coordinate mutation. The implementation does
+  not hide deprecated API usage; it uses none, relies only on metadata embedded in the validated MP4 where
+  Immich extracts it, and explicitly warns rather than claiming guaranteed preservation.
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln --locked-mode` — succeeded.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — succeeded with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 209 tests
+  (167 Domain, 42 Infrastructure), zero failed/skipped.
+- Fresh production startup applied `AddImmichPublication`; `/health/ready` returned HTTP 200 `Healthy`, then
+  the exact smoke process was stopped.
+- Immich adapter source scan for `HttpMethod.Delete`, trash, `deleteAssets`, and `removeAsset` — no matches.
+- Live dedicated Immich 3.1 publication remains blocked because no server/test key was supplied. No original
+  Immich asset was modified or deleted during this milestone.
+
+## 2026-08-10 — Prompt 15: container, CI and POC release candidate
+
+Summary:
+
+- Added a digest-pinned, multi-stage Ubuntu Noble .NET 10 Dockerfile. The runtime installs the fail-closed
+  Ubuntu package `ffmpeg=7:6.1.1-3ubuntu5`, checks ffmpeg/ffprobe and `libx264` during build, runs as the
+  official non-root UID/GID `1654:1654`, makes `dotnet` PID 1, and readiness-checks the application.
+- Added a single-service Compose deployment with a stable named volume, HTTP port, restart policy, 35-second
+  stop grace period, validated secret-free defaults, and no privileged startup or runtime UID remapping.
+- Adopted NuGet lock files for every project and locked restore in Docker and CI. Added a least-privilege
+  GitHub Actions workflow with commit-pinned official actions, Release build, domain tests, Compose validation,
+  image build, non-root inspection, media-tool version output, and `libx264` verification. It needs no Immich
+  secrets or server.
+- Added the MIT license, rewrote README as an operator/developer guide, expanded deployment documentation with
+  ownership, configuration, backup/restore, upgrade/rollback, disk pressure, logs, signal handling, and reverse
+  proxy requirements, and added a criterion-by-criterion release evidence ledger/manual acceptance protocol.
+- Reconciliation found a release-blocking predecessor gap: Prompt 12 Immich publication transport and UI are
+  absent from this checkout. Domain publication guards and persistence scaffolding are present, but the POC
+  success criterion for actual publication and metadata/album preservation is not implemented. This checkout
+  is therefore documented as a release candidate, not a validated POC release.
+
+Pinned versions resolved/selected on 2026-08-10:
+
+- SDK image `10.0.302-noble`: manifest digest
+  `sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0`.
+- ASP.NET image `10.0.10-noble`: manifest digest
+  `sha256:f1126d438ccc359f51cc6d4701a8deae513856cf10f5fe645d29ea6403dcac6b`.
+- Project SDK policy: stable `10.0.102`, latest-patch roll-forward, prerelease disabled.
+- Ubuntu Noble FFmpeg/ffprobe package policy: `7:6.1.1-3ubuntu5`.
+- Local clients: Docker `29.6.1`; Docker Compose `v5.3.0`; VSTest `18.0.1`.
+
+Verification performed:
+
+- `dotnet restore ShrinkFrame.sln --locked-mode` — succeeded.
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — succeeded with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 205 tests:
+  167 Domain and 38 Infrastructure, zero failed/skipped.
+- `docker compose config --quiet` — succeeded with the default, secret-free configuration.
+- Microsoft Container Registry manifest inspection — resolved both multi-architecture digests recorded above.
+- Clean `docker build --no-cache --tag shrinkframe:prompt15 .` — blocked before build because no Docker Engine
+  API exists at `npipe:////./pipe/docker_engine`; this is an environment blocker, not a successful image build.
+
+Unresolved release blockers:
+
+- Docker Engine is unavailable. Clean image build, in-image FFmpeg/ffprobe/libx264 execution, non-root runtime
+  inspection, fresh healthy deployment, named-volume persistence across recreation, and shutdown-under-load
+  could not be executed.
+- No browser/manual media corpus was supplied, so browser end-to-end upload, NotBeneficial confirmation,
+  download, and deletion were not manually repeated against the container.
+- No dedicated Immich 3.1.x test server/non-admin key was supplied. Live acquisition and original-asset
+  before/after comparison remain blocked; no original Immich asset was modified or deleted in this work.
+- Prompt 12 implementation is absent, blocking publication, partial-publication retry, and preservation of
+  published description/location/album membership. See `docs/11-poc-release-evidence.md` for the exact closure
+  protocol.
+
 ## 2026-08-10 — Prompt 14: hardening, health and resilience
 
 Summary:

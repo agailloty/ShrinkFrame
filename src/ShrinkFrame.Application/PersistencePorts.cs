@@ -23,6 +23,16 @@ public sealed record PublicationAttempt(
     PublicationState Result,
     string? ErrorSummary);
 
+public sealed record PublicationCheckpoint(JobId JobId, ConnectionId DestinationConnectionId,
+    string ClientAttemptId, string Sha1Checksum, bool UploadAmbiguous,
+    IReadOnlyList<string> PendingAlbumIds, IReadOnlyList<string> Warnings);
+
+public interface IPublicationCheckpointRepository
+{
+    Task<PublicationCheckpoint?> GetAsync(JobId jobId, CancellationToken cancellationToken = default);
+    Task UpsertAsync(PublicationCheckpoint checkpoint, CancellationToken cancellationToken = default);
+}
+
 public interface IImmichConnectionRepository
 {
     Task AddAsync(StoredImmichConnection connection, CancellationToken cancellationToken = default);

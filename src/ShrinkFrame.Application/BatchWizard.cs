@@ -5,7 +5,8 @@ namespace ShrinkFrame.Application;
 public sealed record BatchSelection(string SourceId, string FileName, long? SizeBytes);
 public sealed record BatchJobView(JobId Id, string SourceId, string FileName, long? SizeBytes,
     PresetId PresetId, CompressionOptions EffectiveOptions, JobState State,
-    IReadOnlyList<ValidationFinding> Findings, bool NotBeneficialPublicationOverride, bool HasOutput);
+    IReadOnlyList<ValidationFinding> Findings, bool NotBeneficialPublicationOverride, bool HasOutput,
+    PublicationState PublicationState, string? PublishedAssetId);
 public sealed record BatchWizardView(BatchId Id, string Name, SourceKind SourceKind, ConnectionId? ConnectionId,
     BatchStatus Status, CompressionOptions DefaultOptions, bool CapacityAdmissionOverride,
     IReadOnlyList<BatchJobView> Jobs, CapacityAdmission Capacity);
@@ -112,7 +113,8 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         var views = stored.Select(x => new BatchJobView(x.Value.Id, x.Value.Source.SourceId,
             x.Value.OriginalMetadata?.FileName ?? x.Value.Source.SourceId, x.Value.OriginalMetadata?.SizeBytes,
             x.Value.PresetId, x.Value.EffectiveOptions, x.Value.State, x.Value.Findings,
-            x.Value.NotBeneficialPublicationOverride, x.Value.OutputArtifact is not null)).ToArray();
+            x.Value.NotBeneficialPublicationOverride, x.Value.OutputArtifact is not null,
+            x.Value.PublicationState, x.Value.PublishedAssetId)).ToArray();
         return new(batch.Id, batch.Name, batch.SourceKind, batch.ConnectionId, batch.Status,
             batch.DefaultOptions, batch.CapacityAdmissionOverride, views, capacity.Evaluate(SourceBytes(stored), batch.CapacityAdmissionOverride));
     }

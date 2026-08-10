@@ -57,6 +57,7 @@ internal static class PersistenceMapper
             MetadataFileName = metadata?.FileName, MetadataMimeType = metadata?.MimeType, MetadataSizeBytes = metadata?.SizeBytes,
             MetadataDurationTicks = metadata?.Duration.Ticks, MetadataWidth = metadata?.Width, MetadataHeight = metadata?.Height,
             MetadataVideoCodec = metadata?.VideoCodec, MetadataCaptureTime = metadata?.CaptureTime,
+            MetadataFileModifiedTime = metadata?.FileModifiedTime,
             MetadataEffectiveRotation = metadata?.EffectiveRotation, MetadataDescription = metadata?.Description,
             MetadataLatitude = metadata?.Latitude, MetadataLongitude = metadata?.Longitude,
             CreatedAt = job.CreatedAt, UpdatedAt = job.UpdatedAt, Version = version,
@@ -87,7 +88,8 @@ internal static class PersistenceMapper
                 TimeSpan.FromTicks(entity.MetadataDurationTicks ?? -1), entity.MetadataWidth ?? -1, entity.MetadataHeight ?? -1,
                 Required(entity.MetadataVideoCodec), entity.AudioCodecs.OrderBy(x => x.Position).Select(x => x.Codec).ToArray(),
                 entity.MetadataCaptureTime, entity.MetadataEffectiveRotation ?? -1, entity.MetadataDescription,
-                entity.MetadataLatitude, entity.MetadataLongitude, entity.Albums.OrderBy(x => x.Position).Select(x => x.AlbumId).ToArray());
+                entity.MetadataLatitude, entity.MetadataLongitude, entity.Albums.OrderBy(x => x.Position).Select(x => x.AlbumId).ToArray(),
+                entity.MetadataFileModifiedTime);
         }
         return CompressionJob.Restore(JobId.From(entity.Id), BatchId.From(entity.BatchId), source, new PresetId(entity.PresetId),
             Options(entity.Crf, entity.EncoderPreset, entity.MaximumResolution, entity.AudioMode, entity.Suffix),
@@ -107,6 +109,7 @@ internal static class PersistenceMapper
         target.MetadataFileName = source.MetadataFileName; target.MetadataMimeType = source.MetadataMimeType; target.MetadataSizeBytes = source.MetadataSizeBytes;
         target.MetadataDurationTicks = source.MetadataDurationTicks; target.MetadataWidth = source.MetadataWidth; target.MetadataHeight = source.MetadataHeight;
         target.MetadataVideoCodec = source.MetadataVideoCodec; target.MetadataCaptureTime = source.MetadataCaptureTime;
+        target.MetadataFileModifiedTime = source.MetadataFileModifiedTime;
         target.MetadataEffectiveRotation = source.MetadataEffectiveRotation; target.MetadataDescription = source.MetadataDescription;
         target.MetadataLatitude = source.MetadataLatitude; target.MetadataLongitude = source.MetadataLongitude; target.UpdatedAt = source.UpdatedAt;
     }

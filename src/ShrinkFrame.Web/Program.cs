@@ -47,6 +47,7 @@ builder.Services.AddOptions<BrowserUploadOptions>()
 builder.Services.AddScoped<BrowserUploadService>();
 builder.Services.AddScoped<IBatchWizard, BatchWizard>();
 builder.Services.AddScoped<IResultDelivery, ResultDelivery>();
+builder.Services.AddScoped<IImmichPublicationService, ImmichPublicationService>();
 builder.Services.AddScoped<SameOriginFilter>();
 builder.Services.AddShrinkFrameSqlite(
     builder.Configuration.GetConnectionString("ShrinkFrame")

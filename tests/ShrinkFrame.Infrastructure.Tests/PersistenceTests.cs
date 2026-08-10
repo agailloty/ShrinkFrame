@@ -41,7 +41,7 @@ public sealed class PersistenceTests
     {
         await using var db = await factory.CreateDbContextAsync();
         var tables = await ReadFirstColumnAsync(db, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
-        CollectionAssert.IsSubsetOf(new[] { "Batches", "ImmichConnections", "Jobs", "JobAudioCodecs", "JobAlbums", "JobProgress", "JobLogs", "PublicationAttempts", "ValidationFindings" }, tables);
+        CollectionAssert.IsSubsetOf(new[] { "Batches", "ImmichConnections", "Jobs", "JobAudioCodecs", "JobAlbums", "JobProgress", "JobLogs", "PublicationAttempts", "PublicationCheckpoints", "ValidationFindings" }, tables);
 
         var columns = await ReadFirstColumnAsync(db, "SELECT name FROM pragma_table_info('Jobs');");
         Assert.IsFalse(columns.Any(x => x.Contains("VideoBytes", StringComparison.OrdinalIgnoreCase)));

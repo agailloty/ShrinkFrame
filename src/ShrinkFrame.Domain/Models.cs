@@ -29,7 +29,8 @@ public sealed record VideoMetadata
 {
     public VideoMetadata(string fileName, string mimeType, long sizeBytes, TimeSpan duration, int width, int height,
         string videoCodec, IReadOnlyList<string>? audioCodecs, DateTimeOffset? captureTime, int effectiveRotation,
-        string? description = null, double? latitude = null, double? longitude = null, IReadOnlyList<string>? albumIds = null)
+        string? description = null, double? latitude = null, double? longitude = null, IReadOnlyList<string>? albumIds = null,
+        DateTimeOffset? fileModifiedTime = null)
     {
         if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrWhiteSpace(mimeType) || string.IsNullOrWhiteSpace(videoCodec))
             throw new DomainException(DomainErrors.InvalidText, "Media text fields are required.");
@@ -40,6 +41,7 @@ public sealed record VideoMetadata
         FileName = fileName.Trim(); MimeType = mimeType.Trim(); SizeBytes = sizeBytes; Duration = duration;
         Width = width; Height = height; VideoCodec = videoCodec.Trim(); CaptureTime = captureTime; EffectiveRotation = effectiveRotation;
         Description = description; Latitude = latitude; Longitude = longitude;
+        FileModifiedTime = fileModifiedTime;
         AudioCodecs = Array.AsReadOnly((audioCodecs ?? []).ToArray());
         AlbumIds = Array.AsReadOnly((albumIds ?? []).ToArray());
     }
@@ -57,6 +59,7 @@ public sealed record VideoMetadata
     public double? Latitude { get; }
     public double? Longitude { get; }
     public ReadOnlyCollection<string> AlbumIds { get; }
+    public DateTimeOffset? FileModifiedTime { get; }
 }
 
 public sealed record ArtifactRef

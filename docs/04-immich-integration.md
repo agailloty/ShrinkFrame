@@ -74,6 +74,7 @@ Accessed 2026-08-10:
 | Thumbnail | <https://api.immich.app/endpoints/assets/viewAsset> | Stable, `asset.view` |
 | Original | <https://api.immich.app/endpoints/assets/downloadAsset> | Stable, `asset.download` |
 | Upload | <https://api.immich.app/endpoints/assets/uploadAsset> | Stable, `asset.upload`; multipart requires `assetData`, `fileCreatedAt`, and `fileModifiedAt`; accepts `filename` and metadata items |
+| Check bulk upload | <https://api.immich.app/endpoints/assets/checkBulkUpload> | Stable, `asset.upload`; request items contain a client ID and base64/hex SHA-1 checksum; a duplicate result includes the existing asset ID |
 | Add to album | <https://api.immich.app/endpoints/albums/addAssetsToAlbum> | Stable, `albumAsset.create`; body is required UUID array `ids` |
 | Per-asset metadata update | <https://api.immich.app/endpoints/assets/updateAssetMetadata> | Stable, `asset.update`; body contains metadata key/value items, but the generic schema does not establish description/location keys |
 | Deprecated asset updates | <https://api.immich.app/endpoints/assets/updateAssets> and <https://api.immich.app/endpoints/assets/updateAsset> | Deprecated in v3; these must not be used to copy description or coordinates |
@@ -121,6 +122,19 @@ Publication back to Immich preserves:
 - description and coordinates when stable supported operations permit;
 - membership in the same album IDs because source and destination instance are identical.
 
-Description and coordinate preservation is an unresolved Prompt 12 contract gate. The v3 upload endpoint accepts generic metadata items, but its published schema does not define keys that prove these fields will populate Immich's description/location model. Prompt 12 must verify this against an actual supported 3.1.x server or its version-matched generated OpenAPI/client tests. If no stable mechanism is proven, publication must warn and remain incomplete against the product preservation criterion; deprecated `PUT /assets` and `PUT /assets/{id}` are not an allowed fallback.
+Prompt 12 re-verification on 2026-08-10 confirmed that the stable upload endpoint's generic metadata items
+still do not define keys that populate Immich's EXIF description, latitude, or longitude fields. The stable
+per-asset metadata endpoint likewise stores generic key/value metadata and does not define those EXIF fields.
+The only documented direct asset mutation DTO is behind deprecated asset-update endpoints. ShrinkFrame does
+not call them. It uploads the validated MP4 (which may contain preserved embedded tags), preserves filename and
+dates through documented multipart fields, and records/displays `publication.metadata.not_guaranteed` whenever
+the source snapshot has description or coordinates. Live verification may prove extraction from a particular
+3.1.x build, but the POC does not claim a stable API guarantee for these fields.
+
+Before every upload or retry ShrinkFrame computes the output SHA-1 with a bounded streaming read and calls the
+stable bulk-upload check. A persisted client attempt ID correlates the response. An existing non-trashed asset
+ID is adopted without uploading. A timeout or transport failure while sending multipart is marked ambiguous;
+retry runs the checksum check first and uploads again only when Immich says no asset exists. It never blindly
+replays an ambiguous multipart body.
 
 An album-add failure retains the new asset and transitions to `PartiallyPublished`. Retry only missing album operations.

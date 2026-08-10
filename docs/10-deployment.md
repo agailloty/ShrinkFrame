@@ -31,27 +31,43 @@ Audit date: 2026-08-10.
 
 The Noble archive provides `ffmpeg` and `ffprobe` together in package `ffmpeg` version `7:6.1.1-3ubuntu5`, including libx264 support through its packaged dependencies. Prompt 15 must install that exact Debian package version (`apt-get install ffmpeg=7:6.1.1-3ubuntu5`), verify `ffmpeg -version`, `ffprobe -version`, and the presence of encoder `libx264`, then clean apt lists. If that exact version is no longer resolvable, do not silently float: update this policy and the implementation log to a reviewed Noble security/update version and repeat media compatibility tests.
 
-The official non-chiseled Noble runtime is required because FFmpeg is installed with apt. Run the finished application as the image's non-root `app` user (UID 1654). The POC host must pre-create/chown the mounted data directory for UID 1654; arbitrary runtime UID/GID remapping is deferred because it conflicts with a strictly non-root startup unless an entrypoint briefly runs privileged.
+The official non-chiseled Noble runtime is required because FFmpeg is installed with apt. The finished
+application runs as the image's non-root `app` user (UID/GID 1654). The image creates `/data`, `/data/keys`,
+and `/data/work` with that ownership. Docker initializes a new named volume from those directory attributes.
+For a bind mount, the operator must create the host directory and `chown 1654:1654` it before startup.
+Arbitrary runtime UID/GID remapping is deferred because it conflicts with a strictly non-root startup unless
+an entrypoint briefly runs privileged.
+
+The Dockerfile pins the multi-architecture manifests resolved on 2026-08-10:
+
+- SDK `10.0.302-noble`: `sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0`;
+- ASP.NET `10.0.10-noble`: `sha256:f1126d438ccc359f51cc6d4701a8deae513856cf10f5fe645d29ea6403dcac6b`.
 
 Primary references accessed 2026-08-10: <https://github.com/dotnet/dotnet-docker/issues/6860>, <https://github.com/dotnet/dotnet-docker/blob/main/README.sdk.md>, <https://github.com/dotnet/dotnet-docker/blob/main/README.aspnet.md>, and <https://packages.ubuntu.com/noble/ffmpeg>.
 
 ## Configuration
 
-Configuration uses environment variables with validated options. At minimum:
+Configuration uses ASP.NET Core environment-variable names (double underscore means a configuration colon):
 
 ```text
-ShrinkFrame__DataPath=/data
-ShrinkFrame__DatabasePath=/data/shrinkframe.db
-ShrinkFrame__WorkPath=/data/work
-ShrinkFrame__MaxInputBytes=21474836480
-ShrinkFrame__CompressionConcurrency=1
-ShrinkFrame__AcquisitionConcurrency=2
-ShrinkFrame__ShutdownTimeoutSeconds=30
-ShrinkFrame__SystemReserveBytes=10737418240
-ShrinkFrame__AllowedHosts=...
+ConnectionStrings__ShrinkFrame=Data Source=/data/shrinkframe.db;Default Timeout=5;Pooling=True
+DataProtection__KeyRingPath=/data/keys
+Storage__WorkRoot=/data/work
+Storage__ReserveBytes=5368709120
+BrowserUploads__MaximumFileSizeBytes=21474836480
+BrowserUploads__AllowedOrigins__0=http://localhost:5080
+Worker__CompressionConcurrency=1
+Worker__AcquisitionConcurrency=2
+Worker__ShutdownTimeoutSeconds=30
+AllowedHosts=localhost;127.0.0.1
 ```
 
 Do not configure Immich API keys through ordinary checked-in Compose values. Connections are added in the UI and encrypted using the persisted Data Protection key ring.
+
+Compose exposes convenience variables `SHRINKFRAME_HTTP_PORT`, `SHRINKFRAME_ALLOWED_HOSTS`,
+`SHRINKFRAME_ORIGIN`, `SHRINKFRAME_RESERVE_BYTES`, `SHRINKFRAME_MAX_INPUT_BYTES`,
+`SHRINKFRAME_COMPRESSION_CONCURRENCY`, and `SHRINKFRAME_ACQUISITION_CONCURRENCY`. The checked-in values are
+secret-free. Set host/origin values to the browser-visible address; origins include scheme and port.
 
 ## Health
 
@@ -68,6 +84,43 @@ their complete HTTP(S) origins, including non-default ports. The checked-in defa
 
 Stop accepting new work, signal running media processes, wait up to the configured 30 seconds, kill remaining process trees, clean partial outputs when safe, and persist active work as Interrupted. Never claim graceful completion when the process was killed.
 
+`dotnet` is the container entrypoint and PID 1, so SIGTERM reaches the host directly. Compose allows 35 seconds,
+five seconds longer than the application timeout. ShrinkFrame owns and terminates FFmpeg process trees. Use
+`docker compose stop`; do not use `docker kill` for routine operation.
+
+## Backup and restore
+
+The named volume is the complete durable unit: SQLite database plus `-wal`/`-shm` sidecars when present,
+Data Protection keys, and job artifacts. For a consistent backup, stop the service, archive the entire volume,
+then restart it. Never copy only `shrinkframe.db` while the application is running and never omit `/data/keys`;
+without the original keys, saved Immich credentials cannot be decrypted.
+
+Restore only while the service is stopped, into an empty volume owned by UID/GID 1654. Restore the whole
+archive together, verify ownership, start the same application version, and wait for readiness. Keep backups
+access-controlled because the database contains encrypted credentials and the key ring needed to decrypt them.
+
+## Upgrade and rollback
+
+1. Stop ShrinkFrame and take a complete volume backup.
+2. Record the current image ID and Compose file, then build/pull the reviewed pinned image.
+3. Run `docker compose up -d`, wait for readiness, and inspect migration/startup logs.
+4. Exercise one non-personal test asset before resuming normal use.
+
+Database migrations are forward-only. Rollback means stopping the new container, restoring the pre-upgrade
+volume backup, restoring the earlier Compose/image version, and starting it. Do not run an older binary against
+a database already migrated by a newer release.
+
+## Disk pressure and logs
+
+`/health/details` reports available and reserve bytes. `Degraded` means the configured reserve is breached;
+stop adding work, delete completed jobs through the Storage UI, or enlarge/move the volume. Do not manually
+remove files below `/data/work`, because SQLite owns artifact references. If the filesystem is full, stop the
+service before remediation and make a backup when space permits.
+
+Application logs are structured JSON on stdout/stderr. Use `docker compose logs --since 1h shrinkframe` and
+configure Docker daemon log rotation appropriate to the host. Job summaries are intentionally bounded. Logs
+must not contain API keys; treat any accidental credential output as a rotation incident.
+
 ## Reverse proxy guidance
 
 The POC is HTTP-only. Documentation must show generic requirements for a future proxy: WebSockets, large request bodies, long upload/download timeouts, response streaming, forwarded headers, and HTTPS. Do not ship insecure universal proxy snippets without explaining their limits.
@@ -82,3 +135,7 @@ GitHub Actions on pull request/push:
 4. build Docker image;
 5. validate Compose configuration;
 6. never require Immich secrets.
+
+The workflow pins third-party action commits, uses the stable SDK selected by `global.json`, validates Compose,
+builds the digest-pinned image, checks UID/GID, prints FFmpeg/ffprobe versions, and verifies `libx264`. No Immich
+server or credential is required.

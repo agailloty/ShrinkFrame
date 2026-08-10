@@ -1,0 +1,14 @@
+.git
+.github
+.agents
+.codex
+.docker-config
+**/bin
+**/obj
+.local
+*.db
+*.db-shm
+*.db-wal
+*.log
+docs
+prompts

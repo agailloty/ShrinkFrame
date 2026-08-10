@@ -12,6 +12,7 @@ public sealed class ShrinkFrameDbContext(DbContextOptions<ShrinkFrameDbContext> 
     internal DbSet<ValidationFindingEntity> ValidationFindings => Set<ValidationFindingEntity>();
     internal DbSet<JobProgressEntity> JobProgress => Set<JobProgressEntity>();
     internal DbSet<PublicationAttemptEntity> PublicationAttempts => Set<PublicationAttemptEntity>();
+    internal DbSet<PublicationCheckpointEntity> PublicationCheckpoints => Set<PublicationCheckpointEntity>();
     internal DbSet<ImmichBrowserSelectionEntity> ImmichBrowserSelections => Set<ImmichBrowserSelectionEntity>();
     internal DbSet<JobLogEntity> JobLogs => Set<JobLogEntity>();
 

@@ -64,6 +64,7 @@ internal sealed class JobEntity
     public int? MetadataHeight { get; set; }
     public string? MetadataVideoCodec { get; set; }
     public DateTimeOffset? MetadataCaptureTime { get; set; }
+    public DateTimeOffset? MetadataFileModifiedTime { get; set; }
     public int? MetadataEffectiveRotation { get; set; }
     public string? MetadataDescription { get; set; }
     public double? MetadataLatitude { get; set; }
@@ -77,7 +78,20 @@ internal sealed class JobEntity
     public List<ValidationFindingEntity> Findings { get; set; } = [];
     public JobProgressEntity? Progress { get; set; }
     public List<PublicationAttemptEntity> PublicationAttempts { get; set; } = [];
+    public PublicationCheckpointEntity? PublicationCheckpoint { get; set; }
     public List<JobLogEntity> Logs { get; set; } = [];
+}
+
+internal sealed class PublicationCheckpointEntity
+{
+    public Guid JobId { get; set; }
+    public JobEntity? Job { get; set; }
+    public Guid DestinationConnectionId { get; set; }
+    public required string ClientAttemptId { get; set; }
+    public required string Sha1Checksum { get; set; }
+    public bool UploadAmbiguous { get; set; }
+    public required string PendingAlbumIdsJson { get; set; }
+    public required string WarningsJson { get; set; }
 }
 
 internal sealed class JobLogEntity

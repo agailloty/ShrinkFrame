@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ShrinkFrame.Application;
 using ShrinkFrame.Domain;
+using System.Text.Json;
 
 namespace ShrinkFrame.Infrastructure.Persistence;
 
@@ -48,7 +49,9 @@ public sealed class ImmichConnectionRepository(ShrinkFrameDbContext db) : IImmic
             nameof(JobState.Compressing), nameof(JobState.Validating) };
         return await db.Batches.AnyAsync(x => x.ConnectionId == id.Value && !terminal.Contains(x.Status), cancellationToken)
             || await db.Jobs.AnyAsync(x => x.SourceConnectionId == id.Value && (activeJobs.Contains(x.State)
-                || x.PublicationState == nameof(PublicationState.Publishing)), cancellationToken);
+                || x.PublicationState == nameof(PublicationState.Publishing)), cancellationToken)
+            || await db.PublicationCheckpoints.AnyAsync(x => x.DestinationConnectionId == id.Value
+                && x.Job!.PublicationState != nameof(PublicationState.Published), cancellationToken);
     }
 
     public async Task DeleteAsync(ConnectionId id, CancellationToken cancellationToken = default)
@@ -200,4 +203,44 @@ public sealed class CompressionJobRepository(ShrinkFrameDbContext db) : ICompres
 
     private IQueryable<JobEntity> JobQuery() => db.Jobs
         .Include(x => x.AudioCodecs).Include(x => x.Albums).Include(x => x.Findings);
+}
+
+public sealed class PublicationCheckpointRepository(ShrinkFrameDbContext db) : IPublicationCheckpointRepository
+{
+    public async Task<PublicationCheckpoint?> GetAsync(JobId jobId, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.PublicationCheckpoints.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.JobId == jobId.Value, cancellationToken);
+        return entity is null ? null : new(jobId, ConnectionId.From(entity.DestinationConnectionId),
+            entity.ClientAttemptId, entity.Sha1Checksum, entity.UploadAmbiguous,
+            Deserialize(entity.PendingAlbumIdsJson), Deserialize(entity.WarningsJson));
+    }
+
+    public async Task UpsertAsync(PublicationCheckpoint checkpoint, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.PublicationCheckpoints.SingleOrDefaultAsync(x => x.JobId == checkpoint.JobId.Value, cancellationToken);
+        if (entity is null)
+        {
+            entity = new PublicationCheckpointEntity
+            {
+                JobId = checkpoint.JobId.Value,
+                DestinationConnectionId = checkpoint.DestinationConnectionId.Value,
+                ClientAttemptId = checkpoint.ClientAttemptId,
+                Sha1Checksum = checkpoint.Sha1Checksum,
+                PendingAlbumIdsJson = "[]",
+                WarningsJson = "[]",
+            };
+            db.PublicationCheckpoints.Add(entity);
+        }
+        entity.DestinationConnectionId = checkpoint.DestinationConnectionId.Value;
+        entity.ClientAttemptId = checkpoint.ClientAttemptId;
+        entity.Sha1Checksum = checkpoint.Sha1Checksum;
+        entity.UploadAmbiguous = checkpoint.UploadAmbiguous;
+        entity.PendingAlbumIdsJson = JsonSerializer.Serialize(checkpoint.PendingAlbumIds);
+        entity.WarningsJson = JsonSerializer.Serialize(checkpoint.Warnings);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string[] Deserialize(string json) => JsonSerializer.Deserialize<string[]>(json)
+        ?? throw new InvalidOperationException("Persisted publication checkpoint JSON is invalid.");
 }

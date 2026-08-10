@@ -1,35 +1,62 @@
 # ShrinkFrame
 
-ShrinkFrame is a self-hosted Blazor application for acquiring large videos, compressing them with FFmpeg, and publishing the results. The proof of concept supports browser uploads and Immich as input sources, local downloads and Immich as destinations.
+ShrinkFrame is a self-hosted Blazor application that streams browser or Immich videos to a server,
+compresses them to validated H.264 MP4 with FFmpeg, and retains downloadable results. It is a proof of
+concept for one trusted operator on a LAN or Tailscale network.
 
-The repository currently contains the architecture and the ordered implementation prompts. Start with [AGENTS.md](AGENTS.md), then read [docs/README.md](docs/README.md). Implementation agents must execute the prompts in [prompts/README.md](prompts/README.md) in order.
+> ShrinkFrame has no authentication. Do not expose it directly to the public Internet.
 
-## POC constraints
+## Run with Docker Compose
 
-- .NET 10 LTS, stable SDK only.
-- Blazor Web App with global Interactive Server rendering.
-- Modular monolith, one ASP.NET Core process and one Docker container.
-- SQLite is the source of truth; local filesystem stores video artifacts.
-- One compression worker by default; vertical scaling is supported through configuration.
-- FFmpeg and ffprobe are bundled in the Linux image; CPU encoding only.
-- H.264 in MP4, with `faststart` always enabled.
-- No ShrinkFrame authentication in the POC; LAN/Tailscale only.
-- Multiple Immich connections, encrypted API keys, source-instance publication only.
-- Original Immich assets are never deleted or replaced.
-- MIT license.
+Requirements: Docker Engine with Compose v2, a Linux container host, and enough persistent storage (the
+initial sizing assumption is 4 CPU cores, 8 GB RAM, and about 70 GB free).
 
-## Development
+```bash
+docker compose up --build -d
+docker compose ps
+curl --fail http://localhost:5080/health/ready
+```
 
-The repository pins a stable .NET 10 SDK feature band. From the repository root:
+Open `http://localhost:5080`. Compose creates the external-name Docker volume `shrinkframe-data`; do not
+use `docker compose down --volumes` unless permanent data loss is intended. Set deployment-specific values
+before starting, for example:
+
+```bash
+SHRINKFRAME_HTTP_PORT=5080 \
+SHRINKFRAME_ALLOWED_HOSTS='shrinkframe.example.lan;192.0.2.10' \
+SHRINKFRAME_ORIGIN='http://shrinkframe.example.lan:5080' \
+docker compose up --build -d
+```
+
+The image runs as UID/GID `1654:1654`. A fresh named volume is initialized with the correct ownership. For
+a bind mount, create an empty host directory, make it owned by `1654:1654`, and replace the Compose volume
+mapping with `/absolute/host/path:/data`. Never put Immich API keys in Compose; add connections through the
+UI so keys are encrypted with the persisted Data Protection key ring.
+
+See [deployment and operations](docs/10-deployment.md) for configuration, backup/restore, upgrade, rollback,
+disk pressure, log, shutdown, and reverse-proxy guidance. Release evidence and remaining blockers are in
+[POC release evidence](docs/11-poc-release-evidence.md).
+
+## Develop and verify
+
+The repository pins stable .NET SDK `10.0.102` and targets `net10.0`.
 
 ```powershell
 dotnet restore ShrinkFrame.sln
 dotnet build ShrinkFrame.sln --configuration Release --no-restore
-dotnet test ShrinkFrame.sln --configuration Release --no-build
-$env:DataProtection__KeyRingPath = ".local/keys"
-dotnet run --project src/ShrinkFrame.Web/ShrinkFrame.Web.csproj --no-build --configuration Release --urls http://localhost:5080
+dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore
+docker compose config --quiet
+docker build --tag shrinkframe:local .
 ```
 
-Open `http://localhost:5080` to view the placeholder shell or request `http://localhost:5080/health` for the startup smoke check.
+For a host process, provide workspace-local database, key-ring, and work-root settings rather than writing
+to `/data`. Architecture and contributor rules begin in [AGENTS.md](AGENTS.md); documentation is indexed in
+[docs/README.md](docs/README.md).
 
-The POC has no authentication. Run it only on a trusted LAN or Tailscale network; public exposure is unsupported.
+## Scope and license
+
+The POC is CPU-only, single-node, and uses SQLite plus local artifacts. It does not replace or delete original
+Immich assets. There is no GPU encoding, resumable transfer, arbitrary FFmpeg arguments, multi-instance
+transfer, application authentication, or multi-node execution.
+
+Licensed under the [MIT License](LICENSE).

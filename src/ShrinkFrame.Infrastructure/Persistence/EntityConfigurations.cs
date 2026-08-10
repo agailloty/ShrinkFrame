@@ -77,6 +77,7 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<JobEntity>
         builder.Property(x => x.CreatedAt).UtcTicks();
         builder.Property(x => x.UpdatedAt).UtcTicks();
         builder.Property(x => x.MetadataCaptureTime).NullableUtcTicks();
+        builder.Property(x => x.MetadataFileModifiedTime).NullableUtcTicks();
         builder.Property(x => x.Version).IsConcurrencyToken();
         builder.HasIndex(x => new { x.State, x.UpdatedAt, x.Id }).HasDatabaseName("IX_Jobs_Queue");
         builder.HasIndex(x => new { x.BatchId, x.CreatedAt, x.Id }).HasDatabaseName("IX_Jobs_BatchHistory");
@@ -143,6 +144,22 @@ internal sealed class PublicationAttemptConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.StartedAt).UtcTicks(); builder.Property(x => x.CompletedAt).NullableUtcTicks();
         builder.HasIndex(x => new { x.JobId, x.StartedAt });
         builder.HasOne(x => x.Job).WithMany(x => x.PublicationAttempts).HasForeignKey(x => x.JobId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class PublicationCheckpointConfiguration : IEntityTypeConfiguration<PublicationCheckpointEntity>
+{
+    public void Configure(EntityTypeBuilder<PublicationCheckpointEntity> builder)
+    {
+        builder.ToTable("PublicationCheckpoints"); builder.HasKey(x => x.JobId);
+        builder.Property(x => x.ClientAttemptId).HasMaxLength(100);
+        builder.Property(x => x.Sha1Checksum).HasMaxLength(100);
+        builder.Property(x => x.PendingAlbumIdsJson).HasMaxLength(8000);
+        builder.Property(x => x.WarningsJson).HasMaxLength(4000);
+        builder.HasOne(x => x.Job).WithOne(x => x.PublicationCheckpoint)
+            .HasForeignKey<PublicationCheckpointEntity>(x => x.JobId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ImmichConnectionEntity>().WithMany().HasForeignKey(x => x.DestinationConnectionId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 

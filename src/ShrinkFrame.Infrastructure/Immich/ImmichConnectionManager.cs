@@ -15,6 +15,7 @@ public sealed class ImmichConnectionOptions
     public const string SectionName = "ImmichConnections";
     public int TimeoutSeconds { get; set; } = 10;
     public int MaximumResponseBytes { get; set; } = 1_048_576;
+    public int PublicationTimeoutSeconds { get; set; } = 3600;
 }
 
 public sealed class ImmichConnectionManager(
@@ -272,12 +273,14 @@ public static class ImmichServiceCollectionExtensions
 {
     public static IServiceCollection AddImmichConnections(this IServiceCollection services, ImmichConnectionOptions options)
     {
-        if (options.TimeoutSeconds is < 1 or > 120 || options.MaximumResponseBytes is < 1024 or > 10_485_760)
+        if (options.TimeoutSeconds is < 1 or > 120 || options.MaximumResponseBytes is < 1024 or > 10_485_760
+            || options.PublicationTimeoutSeconds is < 30 or > 86_400)
             throw new InvalidOperationException("Immich connection options are outside the supported bounds.");
         services.AddSingleton(options);
         services.AddScoped<IImmichConnectionManager, ImmichConnectionManager>();
         services.AddScoped<IImmichVideoBrowser, ImmichVideoBrowser>();
         services.AddScoped<IVideoSource, ImmichVideoSource>();
+        services.AddScoped<IImmichPublicationTransport, ImmichPublicationTransport>();
         return services;
     }
 }

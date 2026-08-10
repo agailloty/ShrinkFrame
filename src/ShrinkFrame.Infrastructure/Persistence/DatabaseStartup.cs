@@ -40,7 +40,7 @@ public sealed class StartupRecovery(IDbContextFactory<ShrinkFrameDbContext> cont
         return await db.Jobs
             .Where(x => activeStates.Contains(x.State) || x.PublicationState == nameof(PublicationState.Publishing))
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.State, nameof(JobState.Interrupted))
+                .SetProperty(x => x.State, x => activeStates.Contains(x.State) ? nameof(JobState.Interrupted) : x.State)
                 .SetProperty(x => x.PublicationState, x => x.PublicationState == nameof(PublicationState.Publishing)
                     ? nameof(PublicationState.Failed) : x.PublicationState)
                 .SetProperty(x => x.UpdatedAt, recoveredAt)
@@ -86,6 +86,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IImmichBrowserSelectionRepository, ImmichBrowserSelectionRepository>();
         services.AddScoped<IBatchRepository, BatchRepository>();
         services.AddScoped<ICompressionJobRepository, CompressionJobRepository>();
+        services.AddScoped<IPublicationCheckpointRepository, PublicationCheckpointRepository>();
         services.AddScoped<IWorkerStore, WorkerStore>();
         services.AddScoped<IOperationsService, OperationsService>();
         services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();

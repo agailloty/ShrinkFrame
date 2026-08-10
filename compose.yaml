@@ -1,0 +1,40 @@
+name: shrinkframe
+
+services:
+  shrinkframe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shrinkframe:0.1.0-poc
+    restart: unless-stopped
+    init: false
+    stop_grace_period: 35s
+    ports:
+      - "${SHRINKFRAME_HTTP_PORT:-5080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      AllowedHosts: "${SHRINKFRAME_ALLOWED_HOSTS:-localhost;127.0.0.1}"
+      BrowserUploads__AllowedOrigins__0: "${SHRINKFRAME_ORIGIN:-http://localhost:5080}"
+      ConnectionStrings__ShrinkFrame: "Data Source=/data/shrinkframe.db;Default Timeout=5;Pooling=True"
+      DataProtection__KeyRingPath: /data/keys
+      Storage__WorkRoot: /data/work
+      Storage__ReserveBytes: "${SHRINKFRAME_RESERVE_BYTES:-5368709120}"
+      BrowserUploads__MaximumFileSizeBytes: "${SHRINKFRAME_MAX_INPUT_BYTES:-21474836480}"
+      Worker__CompressionConcurrency: "${SHRINKFRAME_COMPRESSION_CONCURRENCY:-1}"
+      Worker__AcquisitionConcurrency: "${SHRINKFRAME_ACQUISITION_CONCURRENCY:-2}"
+      Worker__ShutdownTimeoutSeconds: "30"
+      MediaTools__FfmpegPath: /usr/bin/ffmpeg
+      MediaTools__FfprobePath: /usr/bin/ffprobe
+    volumes:
+      - shrinkframe-data:/data
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; head -n 1 <&3 | grep -q ' 200 '"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  shrinkframe-data:
+    name: shrinkframe-data
