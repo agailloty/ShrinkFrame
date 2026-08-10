@@ -71,11 +71,24 @@ internal sealed class JobEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public long Version { get; set; }
+    public bool CancellationRequested { get; set; }
     public List<JobAudioCodecEntity> AudioCodecs { get; set; } = [];
     public List<JobAlbumEntity> Albums { get; set; } = [];
     public List<ValidationFindingEntity> Findings { get; set; } = [];
     public JobProgressEntity? Progress { get; set; }
     public List<PublicationAttemptEntity> PublicationAttempts { get; set; } = [];
+    public List<JobLogEntity> Logs { get; set; } = [];
+}
+
+internal sealed class JobLogEntity
+{
+    public long Id { get; set; }
+    public Guid JobId { get; set; }
+    public JobEntity? Job { get; set; }
+    public DateTimeOffset At { get; set; }
+    public required string Level { get; set; }
+    public required string Code { get; set; }
+    public required string Message { get; set; }
 }
 
 internal sealed class JobAudioCodecEntity { public Guid JobId { get; set; } public int Position { get; set; } public required string Codec { get; set; } public JobEntity? Job { get; set; } }

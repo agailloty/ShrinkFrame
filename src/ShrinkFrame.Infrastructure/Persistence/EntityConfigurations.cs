@@ -84,6 +84,18 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<JobEntity>
     }
 }
 
+internal sealed class JobLogConfiguration : IEntityTypeConfiguration<JobLogEntity>
+{
+    public void Configure(EntityTypeBuilder<JobLogEntity> builder)
+    {
+        builder.ToTable("JobLogs"); builder.HasKey(x => x.Id);
+        builder.Property(x => x.At).UtcTicks(); builder.Property(x => x.Level).HasMaxLength(16);
+        builder.Property(x => x.Code).HasMaxLength(100); builder.Property(x => x.Message).HasMaxLength(1000);
+        builder.HasIndex(x => new { x.JobId, x.At });
+        builder.HasOne(x => x.Job).WithMany(x => x.Logs).HasForeignKey(x => x.JobId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class JobAudioCodecConfiguration : IEntityTypeConfiguration<JobAudioCodecEntity>
 {
     public void Configure(EntityTypeBuilder<JobAudioCodecEntity> builder)

@@ -13,6 +13,7 @@ public sealed class ShrinkFrameDbContext(DbContextOptions<ShrinkFrameDbContext> 
     internal DbSet<JobProgressEntity> JobProgress => Set<JobProgressEntity>();
     internal DbSet<PublicationAttemptEntity> PublicationAttempts => Set<PublicationAttemptEntity>();
     internal DbSet<ImmichBrowserSelectionEntity> ImmichBrowserSelections => Set<ImmichBrowserSelectionEntity>();
+    internal DbSet<JobLogEntity> JobLogs => Set<JobLogEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

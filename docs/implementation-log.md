@@ -1,5 +1,43 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 10: durable worker orchestration
+
+Summary:
+
+- Added an isolated `BackgroundService` that polls active batches from SQLite, atomically claims work,
+  downloads all Immich originals with bounded concurrency before opening the compression phase, and runs
+  configurable compression concurrency (one by default).
+- Added a streaming authenticated Immich-original source adapter, immediate capacity rechecks, ffprobe and
+  FFmpeg composition, output probing/basic validation, atomic output finalization, and durable terminal state
+  transitions. External HTTP, filesystem, probe, and process work occurs outside database transactions.
+- Added application-shutdown plus durable job/batch cancellation. Active FFmpeg cancellation uses the existing
+  process-tree kill and partial-output cleanup; acquired sources remain available for explicit retry.
+- Added guarded acquisition and compression claims, startup recovery compatibility, explicit durable retry,
+  persisted throttled progress, smoother singleton in-memory progress notifications, batch aggregates, and
+  bounded 100-entry per-job logs. Added a Blazor processing view that restores persisted state/progress/logs
+  after reconnect and exposes job/batch cancellation and retry.
+- Added the `AddWorkerOrchestration` migration for cancellation requests and bounded job-log storage, plus
+  SQLite integration coverage for exclusive acquisition claims, reconnect readback, cancellation, and retry.
+
+Decision deviations:
+
+- None. Acquisition claims use the existing guarded `Acquiring -> Probing` active-state transition as the
+  durable ownership marker; probing follows the streamed download inside the same claimed operation.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-restore` — passed 164 Domain and 35 Infrastructure tests.
+- `git diff --check` — completed with no whitespace errors.
+- Fresh Development startup applied `AddWorkerOrchestration`, initialized recovery/storage/media/worker services,
+  and returned HTTP 200 from `/health`; the smoke process was then stopped.
+
+Manual follow-up:
+
+- A real Immich 3.1 server is required to exercise multiple original downloads, one failed asset, and retry.
+- Repeat forced process termination/restart checks during acquisition, probing, compression, and validation on
+  the deployment host; startup recovery and cancellation process-tree cleanup have automated component coverage.
+
 ## 2026-08-10 — Prompt 08: Immich video browser
 
 Summary:

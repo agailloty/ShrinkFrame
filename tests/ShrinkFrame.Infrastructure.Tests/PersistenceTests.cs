@@ -40,7 +40,7 @@ public sealed class PersistenceTests
     {
         await using var db = await factory.CreateDbContextAsync();
         var tables = await ReadFirstColumnAsync(db, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
-        CollectionAssert.IsSubsetOf(new[] { "Batches", "ImmichConnections", "Jobs", "JobAudioCodecs", "JobAlbums", "JobProgress", "PublicationAttempts", "ValidationFindings" }, tables);
+        CollectionAssert.IsSubsetOf(new[] { "Batches", "ImmichConnections", "Jobs", "JobAudioCodecs", "JobAlbums", "JobProgress", "JobLogs", "PublicationAttempts", "ValidationFindings" }, tables);
 
         var columns = await ReadFirstColumnAsync(db, "SELECT name FROM pragma_table_info('Jobs');");
         Assert.IsFalse(columns.Any(x => x.Contains("VideoBytes", StringComparison.OrdinalIgnoreCase)));
@@ -131,6 +131,65 @@ public sealed class PersistenceTests
         job.TransitionTo(JobState.Cancelled, DateTimeOffset.UtcNow);
         _ = await repository.UpdateAsync(job, version);
         await Assert.ThrowsExactlyAsync<PersistenceConcurrencyException>(() => repository.UpdateAsync(job, version));
+    }
+
+    [TestMethod]
+    public async Task WorkerStoreGuardsAcquisitionClaimAndPersistsReconnectState()
+    {
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        var connectionId = ConnectionId.New();
+        var batch = new CompressionBatch(BatchId.New(), "Immich", SourceKind.Immich, connectionId, BuiltInPresets.Snapshot(new("balanced")), now);
+        var source = VideoSourceRef.Immich("asset-1", connectionId);
+        var job = new CompressionJob(JobId.New(), batch.Id, source, new("balanced"), batch.DefaultOptions, now);
+        batch.AddJob(job.Id, source, now); job.TransitionTo(JobState.Acquiring, now); batch.Confirm(now);
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            await new BatchRepository(db).AddAsync(batch);
+            await new CompressionJobRepository(db).AddAsync(job);
+        }
+
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var store = new WorkerStore(db);
+            var candidate = (await store.ListJobsAsync(batch.Id)).Single();
+            Assert.IsNotNull(await store.TryClaimAcquisitionAsync(job.Id, candidate.Version, now));
+        }
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var store = new WorkerStore(db);
+            Assert.IsNull(await store.TryClaimAcquisitionAsync(job.Id, 1, now));
+            await new CompressionJobRepository(db).SaveProgressAsync(job.Id, new(new TransferProgress(50, 100), null, now));
+            await store.AppendLogAsync(job.Id, new(now, "Information", "acquisition.started", "Started."));
+            var runtime = await store.GetRuntimeAsync(job.Id);
+            Assert.AreEqual(50, runtime!.Progress!.Transfer!.BytesTransferred);
+            Assert.AreEqual("acquisition.started", runtime.Logs.Single().Code);
+            var aggregate = await store.GetBatchProgressAsync(batch.Id);
+            Assert.AreEqual(0m, aggregate!.Percentage);
+        }
+    }
+
+    [TestMethod]
+    public async Task CancellationAndExplicitRetryAreDurable()
+    {
+        var (jobId, _) = await AddQueuedBrowserJobAsync();
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var store = new WorkerStore(db); await store.RequestJobCancellationAsync(jobId, DateTimeOffset.UtcNow);
+            Assert.IsTrue(await store.IsCancellationRequestedAsync(jobId));
+            var candidate = (await store.ListJobsAsync((await new CompressionJobRepository(db).GetAsync(jobId))!.Value.BatchId)).Single();
+            Assert.IsNull(await store.TryClaimCompressionAsync(jobId, candidate.Version, DateTimeOffset.UtcNow));
+        }
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var repository = new CompressionJobRepository(db); var stored = (await repository.GetAsync(jobId))!;
+            stored.Value.Cancel(DateTimeOffset.UtcNow); await repository.UpdateAsync(stored.Value, stored.Version);
+        }
+        await using (var db = await factory.CreateDbContextAsync())
+        {
+            var store = new WorkerStore(db); await store.RetryAsync(jobId, DateTimeOffset.UtcNow);
+            Assert.IsFalse(await store.IsCancellationRequestedAsync(jobId));
+            Assert.AreEqual(JobState.Queued, (await new CompressionJobRepository(db).GetAsync(jobId))!.Value.State);
+        }
     }
 
     [TestMethod]

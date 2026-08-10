@@ -60,6 +60,7 @@ internal static class PersistenceMapper
             MetadataEffectiveRotation = metadata?.EffectiveRotation, MetadataDescription = metadata?.Description,
             MetadataLatitude = metadata?.Latitude, MetadataLongitude = metadata?.Longitude,
             CreatedAt = job.CreatedAt, UpdatedAt = job.UpdatedAt, Version = version,
+            CancellationRequested = false,
         };
         if (metadata is not null)
         {

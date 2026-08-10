@@ -277,6 +277,7 @@ public static class ImmichServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddScoped<IImmichConnectionManager, ImmichConnectionManager>();
         services.AddScoped<IImmichVideoBrowser, ImmichVideoBrowser>();
+        services.AddScoped<IVideoSource, ImmichVideoSource>();
         return services;
     }
 }

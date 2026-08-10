@@ -97,6 +97,21 @@ public sealed class CompressionBatch
         CapacityAdmissionOverride = true;
         UpdatedAt = now;
     }
+    public void MarkProcessing(DateTimeOffset now)
+    {
+        if (Status != BatchStatus.Acquiring) throw new DomainException(DomainErrors.InvalidJobTransition, "Only an acquiring batch can begin processing.");
+        Status = BatchStatus.Processing; UpdatedAt = now;
+    }
+    public void Complete(DateTimeOffset now)
+    {
+        if (Status is not (BatchStatus.Acquiring or BatchStatus.Processing)) throw new DomainException(DomainErrors.InvalidJobTransition, "Only active batches can complete.");
+        Status = BatchStatus.Completed; UpdatedAt = now;
+    }
+    public void Cancel(DateTimeOffset now)
+    {
+        if (Status is BatchStatus.Completed or BatchStatus.Cancelled) return;
+        Status = BatchStatus.Cancelled; UpdatedAt = now;
+    }
     private void EnsureDraft()
     {
         if (Status != BatchStatus.Draft)
@@ -168,6 +183,26 @@ public sealed class CompressionJob
         State = target; UpdatedAt = now;
     }
     public void RecordProbe(VideoMetadata metadata, ArtifactRef sourceArtifact) => (OriginalMetadata, SourceArtifact) = (metadata, sourceArtifact);
+    public void Cancel(DateTimeOffset now)
+    {
+        if (State is JobState.Ready or JobState.NotBeneficial) throw new DomainException(DomainErrors.InvalidJobTransition, "A completed job cannot be cancelled.");
+        if (State is JobState.Failed or JobState.Interrupted or JobState.Draft or JobState.Acquiring or JobState.Probing or JobState.Queued or JobState.Compressing or JobState.Validating)
+        { State = JobState.Cancelled; UpdatedAt = now; }
+    }
+    public void FailProcessing(string code, string message, DateTimeOffset now)
+    {
+        if (State is not (JobState.Compressing or JobState.Validating))
+            throw new DomainException(DomainErrors.InvalidJobTransition, "Only compression or validation can fail here.");
+        findings.Clear(); findings.Add(new ValidationFinding(code, FindingSeverity.Blocking, message));
+        State = JobState.Failed; UpdatedAt = now;
+    }
+    public void Retry(DateTimeOffset now)
+    {
+        if (State is not (JobState.Failed or JobState.Cancelled or JobState.Interrupted))
+            throw new DomainException(DomainErrors.InvalidJobTransition, "Only failed, cancelled, or interrupted jobs can be retried.");
+        State = SourceArtifact is null ? JobState.Acquiring : JobState.Queued;
+        findings.Clear(); UpdatedAt = now;
+    }
     public void Fail(string code, string message, DateTimeOffset now)
     {
         if (State is not (JobState.Acquiring or JobState.Probing))

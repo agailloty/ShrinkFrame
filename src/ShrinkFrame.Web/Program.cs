@@ -9,6 +9,7 @@ using ShrinkFrame.Infrastructure.Media;
 using ShrinkFrame.Infrastructure.Immich;
 using ShrinkFrame.Web.BrowserUploads;
 using ShrinkFrame.Web.Immich;
+using ShrinkFrame.Infrastructure.Worker;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,6 +59,12 @@ builder.Services.AddMediaTools(mediaTools);
 var immichConnections = builder.Configuration.GetSection(ImmichConnectionOptions.SectionName).Get<ImmichConnectionOptions>()
     ?? new ImmichConnectionOptions();
 builder.Services.AddImmichConnections(immichConnections);
+var worker = builder.Configuration.GetSection(WorkerOptions.SectionName).Get<WorkerOptions>() ?? new WorkerOptions();
+builder.Services.AddDurableWorker(new DurableWorkerOptions
+{
+    AcquisitionConcurrency = worker.AcquisitionConcurrency,
+    CompressionConcurrency = worker.CompressionConcurrency,
+});
 
 var app = builder.Build();
 
