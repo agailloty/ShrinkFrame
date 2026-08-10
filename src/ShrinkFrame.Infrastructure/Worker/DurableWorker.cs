@@ -31,6 +31,8 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
         new EventId(1201, "DurableWorkerStarted"), "Durable worker started with acquisition concurrency {AcquisitionConcurrency} and compression concurrency {CompressionConcurrency}.");
     private static readonly Action<ILogger, Exception?> LogPassFailed = LoggerMessage.Define(LogLevel.Error,
         new EventId(1202, "DurableWorkerPassFailed"), "Durable worker pass failed.");
+    private static readonly Action<ILogger, int, Exception?> LogStopped = LoggerMessage.Define<int>(LogLevel.Information,
+        new EventId(1203, "DurableWorkerStopped"), "Durable worker stopped; {InterruptedJobCount} active jobs were persisted as interrupted.");
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LogStarted(logger, options.AcquisitionConcurrency, options.CompressionConcurrency, null);
@@ -39,8 +41,18 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
             try { await RunPassAsync(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception exception) { LogPassFailed(logger, exception); }
-            await Task.Delay(options.PollInterval, stoppingToken);
+            try { await Task.Delay(options.PollInterval, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await base.StopAsync(cancellationToken);
+        using var scope = scopes.CreateScope();
+        var interrupted = await scope.ServiceProvider.GetRequiredService<IStartupRecovery>()
+            .RecoverInterruptedJobsAsync(time.GetUtcNow(), cancellationToken);
+        LogStopped(logger, interrupted, null);
     }
 
     private async Task RunPassAsync(CancellationToken token)

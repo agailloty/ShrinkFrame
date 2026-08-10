@@ -11,4 +11,7 @@ public sealed class WorkerOptions
 
     [Range(1, 16)]
     public int AcquisitionConcurrency { get; init; } = 2;
+
+    [Range(1, 300)]
+    public int ShutdownTimeoutSeconds { get; init; } = 30;
 }

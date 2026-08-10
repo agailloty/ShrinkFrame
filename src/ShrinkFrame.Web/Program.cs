@@ -11,6 +11,7 @@ using ShrinkFrame.Web.BrowserUploads;
 using ShrinkFrame.Web.Immich;
 using ShrinkFrame.Infrastructure.Worker;
 using ShrinkFrame.Web.ResultDelivery;
+using ShrinkFrame.Web.Operations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,9 @@ builder.Services.AddOptions<WorkerOptions>()
     .BindConfiguration(WorkerOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services.Configure<HostOptions>(options =>
+    options.ShutdownTimeout = TimeSpan.FromSeconds(
+        builder.Configuration.GetValue<int?>($"{WorkerOptions.SectionName}:ShutdownTimeoutSeconds") ?? 30));
 builder.Services.AddOptions<BrowserUploadOptions>()
     .BindConfiguration(BrowserUploadOptions.SectionName)
     .ValidateDataAnnotations()
@@ -61,6 +65,7 @@ builder.Services.AddMediaTools(mediaTools);
 var immichConnections = builder.Configuration.GetSection(ImmichConnectionOptions.SectionName).Get<ImmichConnectionOptions>()
     ?? new ImmichConnectionOptions();
 builder.Services.AddImmichConnections(immichConnections);
+builder.Services.AddSingleton<OperationalHealthService>();
 var worker = builder.Configuration.GetSection(WorkerOptions.SectionName).Get<WorkerOptions>() ?? new WorkerOptions();
 builder.Services.AddDurableWorker(new DurableWorkerOptions
 {
@@ -75,6 +80,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseMiddleware<CorrelationAndSecurityHeadersMiddleware>();
 
 var supportedCultures = new[] { new CultureInfo("en") };
 app.UseRequestLocalization(new RequestLocalizationOptions
@@ -87,9 +93,7 @@ app.UseRequestLocalization(new RequestLocalizationOptions
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapGet("/health", (IMediaToolStatus media) => media.Current.Available
-    ? Results.Ok(new { status = "Healthy", media = media.Current })
-    : Results.Json(new { status = "Unhealthy", media = media.Current }, statusCode: 503));
+app.MapOperationalHealth();
 app.MapBrowserUploads();
 app.MapImmichBrowser();
 app.MapResultDownloads();

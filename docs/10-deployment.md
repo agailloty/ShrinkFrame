@@ -2,6 +2,10 @@
 
 ## Container topology
 
+> **No authentication / LAN only:** anyone who can reach ShrinkFrame can upload data, consume CPU and
+> disk, and publish through every configured Immich connection. Bind and firewall it to a trusted LAN or
+> Tailscale network. Direct public Internet exposure is unsupported.
+
 The POC Docker Compose defines one ShrinkFrame service, one persistent named volume mounted at `/data`, HTTP exposure, restart policy, and health check. No reverse proxy is bundled.
 
 The final runtime image:
@@ -51,10 +55,14 @@ Do not configure Immich API keys through ordinary checked-in Compose values. Con
 
 ## Health
 
-- Liveness: process responds and database loop is not deadlocked.
-- Readiness: database reachable/migrated, work path writable, ffmpeg and ffprobe executable.
+- `/health/live`: process liveness only.
+- `/health/ready`: database reachable/migrated, work path writable, ffmpeg and ffprobe executable.
+- `/health/details`: the same readiness decision with component details and disk byte counts.
 - Low disk is degraded readiness/detail, not necessarily liveness failure.
 - Immich connection outages do not make ShrinkFrame itself unhealthy.
+
+`AllowedHosts` must list the deployment hostnames/IP addresses. `BrowserUploads:AllowedOrigins` must list
+their complete HTTP(S) origins, including non-default ports. The checked-in defaults accept loopback only.
 
 ## Shutdown
 

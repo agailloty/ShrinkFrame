@@ -1,5 +1,62 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 14: hardening, health and resilience
+
+Summary:
+
+- Added request correlation IDs to structured JSON log scopes and responses, rejected unsafe supplied IDs,
+  and applied CSP, frame, MIME-sniffing, and referrer security headers to all application responses.
+- Kept production exception handling generic and simplified the error page to show only a correlation ID.
+  Tightened checked-in host filtering from wildcard to loopback; deployments must explicitly configure both
+  `AllowedHosts` and exact browser-upload origins. Existing raw-body antiforgery, matching Origin/Host,
+  streamed byte limits, and Kestrel per-request limits remain enforced.
+- Re-audited Immich URL normalization and clients: only HTTP(S) site roots are accepted, URL credentials are
+  rejected, automatic redirects are disabled, manual redirects remain same-origin and bounded, requests have
+  timeouts, JSON/thumbnails are size-bounded, originals remain streamed, and API keys stay in server-only
+  headers. Per-operation clients are disposed; original-download clients remain owned by and disposed with
+  their returned streams so no response is prematurely closed.
+- Added separate `/health/live`, `/health/ready`, and `/health/details` endpoints. Readiness checks SQLite,
+  work-root writability, ffmpeg/ffprobe, and disk reserve; low disk is `Degraded` without killing liveness,
+  while missing required tools is `Unhealthy`/503. Immich outages remain per-connection status.
+- Configured the host's validated shutdown timeout at 30 seconds. Worker cancellation stops new passes/claims,
+  propagates through streamed transfers and media processes, uses existing process-tree termination and partial
+  cleanup, waits through `BackgroundService.StopAsync`, and then durably marks any remaining active work
+  `Interrupted`. Fixed polling-delay cancellation so normal host shutdown does not fault the worker.
+- Confirmed bounded 100-entry, 1,000-character per-job summaries; bounded media diagnostic tails; async stream
+  disposal; pooled EF contexts; bounded transfer buffers; and no whole-video browser/Immich buffering.
+- Replaced the About text with a prominent no-auth/LAN-only warning and added the same operational warning plus
+  host/origin and health endpoint guidance to deployment documentation.
+
+Secret-leak audit:
+
+- Browser/application views expose only `HasApiKey`; encrypted envelopes remain Infrastructure-only and the
+  database stores them solely in the `EncryptedApiKey` BLOB. API keys are not placed in URLs, DTOs, job logs,
+  exceptions, health output, or response bodies. Authenticated request bodies/headers are never application-logged.
+- Source search found no checked-in key/password/secret values. Production runtime output and health/browser
+  responses contained no credential material or stack traces. EF structured logging parameterized values as `?`.
+
+Decision deviations:
+
+- None. Low disk deliberately returns HTTP 200 with `Degraded`; it blocks admission through the existing
+  capacity policy but does not imply process or dependency death.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 205 tests
+  (167 Domain, 38 Infrastructure), 0 failed and 0 skipped.
+- `dotnet list ShrinkFrame.sln package --vulnerable --include-transitive --no-restore` — NuGet reported no
+  vulnerable direct or transitive package in any project (online advisory check).
+- Production workspace-local startup: readiness returned `Healthy`/200; response included a correlation ID,
+  CSP and other security headers; a request with `Host: evil.example` returned 400.
+- A 2 TB simulated reserve returned `Degraded`/200 with actual available/reserve byte details. Missing ffmpeg
+  and ffprobe paths returned `Unhealthy`/503 while database and work-path components remained healthy.
+- Process shutdown left no observed `ffmpeg` process. Existing media cancellation tests verify process-tree kill
+  and partial-output deletion; SQLite recovery tests verify durable, idempotent `Interrupted` persistence.
+- The earlier browser-upload integration check remains applicable: a foreign Origin with a valid antiforgery
+  token returned 403 and made no database change; oversized and invalid uploads left no artifact.
+- `git diff --check` — completed without whitespace errors.
+
 ## 2026-08-10 — Prompt 13: dashboard, history and storage
 
 Summary:
