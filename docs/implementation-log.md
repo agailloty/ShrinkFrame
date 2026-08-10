@@ -12,6 +12,10 @@ Framework contract verification:
 
 - Verified on 2026-08-10 against the official Microsoft .NET 10 download page that SDK `10.0.302`, released 2026-07-14, is the latest stable .NET 10 SDK: <https://dotnet.microsoft.com/en-us/download/dotnet/10.0>.
 
+Lock-file reconciliation:
+
+- Removed the preview-SDK-generated `Microsoft.AspNetCore.App.Internal.Assets` entry from the Web project lock file. It is not a package dependency produced by the stable `10.0.302` SDK and caused stable locked-mode restore to fail with `NU1004`.
+
 ## 2026-08-10 — Version 1.0 interface refresh
 
 - Reworked the application shell, responsive navigation, typography, color system, cards, tables, forms,
