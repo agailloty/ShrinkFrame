@@ -25,6 +25,7 @@ internal static class PersistenceMapper
     {
         Id = batch.Id.Value, Name = batch.Name, SourceKind = batch.SourceKind.ToString(),
         ConnectionId = batch.ConnectionId?.Value, Status = batch.Status.ToString(),
+        CapacityAdmissionOverride = batch.CapacityAdmissionOverride,
         DefaultCrf = batch.DefaultOptions.Crf, DefaultEncoderPreset = batch.DefaultOptions.EncoderPreset.ToString(),
         DefaultMaximumResolution = batch.DefaultOptions.MaximumResolution.ToString(),
         DefaultAudioMode = batch.DefaultOptions.AudioMode.ToString(), DefaultSuffix = batch.DefaultOptions.Suffix,
@@ -35,7 +36,8 @@ internal static class PersistenceMapper
         BatchId.From(entity.Id), entity.Name, Parse<SourceKind>(entity.SourceKind),
         entity.ConnectionId.HasValue ? ConnectionId.From(entity.ConnectionId.Value) : null,
         Options(entity.DefaultCrf, entity.DefaultEncoderPreset, entity.DefaultMaximumResolution, entity.DefaultAudioMode, entity.DefaultSuffix),
-        Parse<BatchStatus>(entity.Status), entity.CreatedAt, entity.UpdatedAt, entity.Jobs.Select(x => JobId.From(x.Id)));
+        Parse<BatchStatus>(entity.Status), entity.CreatedAt, entity.UpdatedAt, entity.Jobs.Select(x => JobId.From(x.Id)),
+        entity.CapacityAdmissionOverride);
 
     internal static JobEntity ToEntity(CompressionJob job, long version)
     {

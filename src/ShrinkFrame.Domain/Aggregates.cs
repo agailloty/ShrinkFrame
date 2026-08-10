@@ -49,6 +49,7 @@ public sealed class CompressionBatch
     public ConnectionId? ConnectionId { get; }
     public BatchStatus Status { get; private set; }
     public CompressionOptions DefaultOptions { get; }
+    public bool CapacityAdmissionOverride { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
     public ReadOnlyCollection<JobId> JobIds => jobIds.AsReadOnly();
@@ -58,15 +59,21 @@ public sealed class CompressionBatch
         if (!jobIds.Contains(id)) jobIds.Add(id);
         UpdatedAt = now;
     }
+    public void AuthorizeCapacityAdmissionOverride(DateTimeOffset now)
+    {
+        CapacityAdmissionOverride = true;
+        UpdatedAt = now;
+    }
 
     internal static CompressionBatch Restore(BatchId id, string name, SourceKind sourceKind,
         ConnectionId? connectionId, CompressionOptions defaultOptions, BatchStatus status,
-        DateTimeOffset createdAt, DateTimeOffset updatedAt, IEnumerable<JobId> jobs)
+        DateTimeOffset createdAt, DateTimeOffset updatedAt, IEnumerable<JobId> jobs, bool capacityAdmissionOverride = false)
     {
         var batch = new CompressionBatch(id, name, sourceKind, connectionId, defaultOptions, createdAt)
         {
             Status = status,
             UpdatedAt = updatedAt,
+            CapacityAdmissionOverride = capacityAdmissionOverride,
         };
         batch.jobIds.AddRange(jobs.Distinct());
         return batch;

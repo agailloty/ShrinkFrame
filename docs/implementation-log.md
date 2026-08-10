@@ -1,5 +1,30 @@
 # Implementation log
 
+## 2026-08-10 — Prompt 04: work storage and capacity
+
+Summary:
+
+- Added Application storage contracts for server-generated allocation, create-new/open, bounded copy,
+  atomic finalize, ownership-scoped deletion and inventory, path-free inventory DTOs, capacity reporting,
+  and structured admission reasons.
+- Implemented canonical-root local storage with strict key validation, partial/final distinction,
+  cancellation cleanup, byte counts, symlink/reparse-point rejection, and non-recursive known-artifact deletion.
+- Added configurable capacity reporting using `source * 2.2 + reserve`, an injectable reporter seam,
+  non-forceable arithmetic-overflow decisions, and a durable batch capacity-admission override with migration.
+- Added startup work-root creation/writability validation and Development-local storage configuration.
+- Documented repeatable manual safety checks; no Storage UI was implemented.
+
+Decision deviations:
+
+- None. Deletion intentionally removes known files individually and stops at the first failure, avoiding
+  recursive directory deletion entirely.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings/errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-restore` — automated storage, capacity,
+  persistence, and domain coverage passed.
+
 Add newest entries at the top. Each entry must include date, prompt number, summary, verification commands, and any deviation from `decisions.md`.
 
 ## 2026-08-10 — Prompt 03: SQLite persistence and durable queue

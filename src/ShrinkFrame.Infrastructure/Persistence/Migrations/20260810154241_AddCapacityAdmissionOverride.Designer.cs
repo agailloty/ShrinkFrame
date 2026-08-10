@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ShrinkFrame.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using ShrinkFrame.Infrastructure.Persistence;
 namespace ShrinkFrame.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ShrinkFrameDbContext))]
-    partial class ShrinkFrameDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810154241_AddCapacityAdmissionOverride")]
+    partial class AddCapacityAdmissionOverride
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");

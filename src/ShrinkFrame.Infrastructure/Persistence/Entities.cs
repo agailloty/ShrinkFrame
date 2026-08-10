@@ -22,6 +22,7 @@ internal sealed class BatchEntity
     public required string SourceKind { get; set; }
     public Guid? ConnectionId { get; set; }
     public required string Status { get; set; }
+    public bool CapacityAdmissionOverride { get; set; }
     public int DefaultCrf { get; set; }
     public required string DefaultEncoderPreset { get; set; }
     public required string DefaultMaximumResolution { get; set; }

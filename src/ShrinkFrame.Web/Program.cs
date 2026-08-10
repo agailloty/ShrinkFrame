@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using ShrinkFrame.Web.Components;
 using ShrinkFrame.Web.Configuration;
 using ShrinkFrame.Infrastructure.Persistence;
+using ShrinkFrame.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,14 @@ builder.Services.AddOptions<WorkerOptions>()
 builder.Services.AddShrinkFrameSqlite(
     builder.Configuration.GetConnectionString("ShrinkFrame")
         ?? throw new InvalidOperationException("ConnectionStrings:ShrinkFrame is required."));
+var storage = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
+    ?? throw new InvalidOperationException("Storage configuration is required.");
+builder.Services.AddLocalWorkStorage(new WorkStorageOptions
+{
+    WorkRoot = storage.WorkRoot,
+    ReserveBytes = storage.ReserveBytes,
+    BufferSizeBytes = storage.BufferSizeBytes,
+});
 
 var app = builder.Build();
 

@@ -3,6 +3,16 @@ namespace ShrinkFrame.Domain.Tests;
 [TestClass]
 public sealed class AggregateTests
 {
+    [TestMethod]
+    public void Batch_persists_capacity_override_as_aggregate_state()
+    {
+        var batch = new CompressionBatch(BatchId.New(), "batch", SourceKind.BrowserUpload, null,
+            BuiltInPresets.Get(new PresetId("balanced")).Options, Now);
+        batch.AuthorizeCapacityAdmissionOverride(Now.AddMinutes(1));
+        Assert.IsTrue(batch.CapacityAdmissionOverride);
+        Assert.AreEqual(Now.AddMinutes(1), batch.UpdatedAt);
+    }
+
     private static readonly DateTimeOffset Now = new(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
 
     [TestMethod]

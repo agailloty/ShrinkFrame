@@ -74,6 +74,7 @@ public sealed class PersistenceTests
             new ArtifactRef("batches/a/jobs/b/source/input.bin"));
         job.TransitionTo(JobState.Queued, now.AddMinutes(3));
         batch.AddJob(job.Id, source, now.AddMinutes(3));
+        batch.AuthorizeCapacityAdmissionOverride(now.AddMinutes(4));
 
         await using (var db = await factory.CreateDbContextAsync())
         {
@@ -87,6 +88,7 @@ public sealed class PersistenceTests
             CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, storedConnection!.ApiKeyEnvelope!.Payload);
             var storedBatch = await new BatchRepository(db).GetAsync(batch.Id);
             CollectionAssert.AreEqual(new[] { job.Id }, storedBatch!.JobIds);
+            Assert.IsTrue(storedBatch.CapacityAdmissionOverride);
             var storedJob = await new CompressionJobRepository(db).GetAsync(job.Id);
             Assert.AreEqual(JobState.Queued, storedJob!.Value.State);
             Assert.AreEqual("clip.mov", storedJob.Value.OriginalMetadata!.FileName);
