@@ -20,7 +20,13 @@ curl --fail http://localhost:5080/health/ready
 
 Open `http://localhost:5080`. Compose creates the external-name Docker volume `shrinkframe-data`; do not
 use `docker compose down --volumes` unless permanent data loss is intended. Set deployment-specific values
-before starting, for example:
+before starting. The easiest approach is to copy the complete example and edit its hostname/origin:
+
+```bash
+cp .env.example .env
+```
+
+Alternatively, export values in the current shell:
 
 ```bash
 export SHRINKFRAME_HTTP_PORT=5080

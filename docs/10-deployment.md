@@ -70,7 +70,9 @@ Do not configure Immich API keys through ordinary checked-in Compose values. Con
 Compose exposes convenience variables `SHRINKFRAME_HTTP_PORT`, `SHRINKFRAME_ALLOWED_HOSTS`,
 `SHRINKFRAME_ORIGIN`, `SHRINKFRAME_RESERVE_BYTES`, `SHRINKFRAME_MAX_INPUT_BYTES`,
 `SHRINKFRAME_COMPRESSION_CONCURRENCY`, and `SHRINKFRAME_ACQUISITION_CONCURRENCY`. The checked-in values are
-secret-free. Set host/origin values to the browser-visible address; origins include scheme and port.
+secret-free. Copy `.env.example` to the ignored `.env` file and adjust the public hostname or IP before
+startup. Set host/origin values to the browser-visible address; origins include scheme and port. Never put
+Immich API keys in `.env`.
 
 ## Health
 

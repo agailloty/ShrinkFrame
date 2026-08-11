@@ -732,3 +732,18 @@ Verification performed:
 
 - `docker compose config --quiet` — completed successfully.
 - `git diff --check` — completed with no whitespace errors.
+## 2026-08-11 — Compose environment example
+
+Summary:
+
+- Added a secret-free `.env.example` containing every variable consumed by `compose.yaml`, safe sizing/concurrency defaults, and guidance for the required browser-visible host and origin.
+- Documented copying the example to the ignored `.env` file and reiterated that Immich API keys belong in the encrypted UI-managed connection store.
+
+Decision deviations:
+
+- None.
+
+Verification performed:
+
+- `docker compose --env-file .env.example config --quiet` — completed successfully.
+- `git diff --check` — completed with no whitespace errors.
