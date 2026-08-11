@@ -3,22 +3,114 @@
 @using ShrinkFrame.Domain
 @inject IOperationsService Operations
 @inject IWorkerStore Worker
+@inject IImmichPublicationService Publications
+@inject IImmichConnectionManager Connections
 @inject TimeProvider Time
 
 <PageTitle>Batch details</PageTitle>
-@if(error is not null){<div class="alert alert-danger" role="alert"><strong>@errorCode</strong> @error <button class="btn btn-sm btn-outline-dark ms-2" @onclick="LoadAsync">Retry</button></div>}
-else if(view is null){<p role="status">Loading batch details…</p>}
-else {
- <nav aria-label="Breadcrumb"><a href="batches">Batches</a> / @view.Batch.Name</nav><h1>@view.Batch.Name</h1>
- <p><strong>Status:</strong> @view.Batch.Status · <strong>Source:</strong> @view.Batch.Source · <strong>Created:</strong> @view.Batch.CreatedAt.LocalDateTime.ToString("g") · <strong>Publication:</strong> @view.Batch.Publication</p>
- @if(view.Jobs.Count==0){<div class="alert alert-light border">This batch has no remaining jobs.</div>}
- @foreach(var job in view.Jobs){<article class="card mb-3"><div class="card-header d-flex justify-content-between"><span><strong>@job.FileName</strong></span><span>@job.State · @job.Publication</span></div><div class="card-body">
-   <p>Preset: @job.Preset.Value · Source: @Bytes(job.SourceBytes) · Output: @Bytes(job.OutputBytes)</p>
-   @if(job.Findings.Count>0){<h2 class="h6">Validation findings</h2><ul>@foreach(var finding in job.Findings){<li><strong>@finding.Severity — @finding.Code:</strong> @finding.Message</li>}</ul>}
-   <details><summary>Known artifacts (@job.Artifacts.Count(x=>x.Exists) present)</summary><ul>@foreach(var artifact in job.Artifacts.Where(x=>x.Exists)){<li><code>@artifact.Key.Key</code> — @Bytes(artifact.SizeBytes)@(artifact.IsPartial ? " — partial" : "")</li>}</ul></details>
-   <details class="mt-2"><summary>Bounded log summary (@job.Logs.Count entries)</summary>@if(job.Logs.Count==0){<p>No log entries.</p>}else{<ol>@foreach(var entry in job.Logs){<li><time>@entry.At.LocalDateTime.ToString("g")</time> <strong>@entry.Level / @entry.Code:</strong> @entry.Message</li>}</ol>}</details>
-   @if(job.CanRetry){<button class="btn btn-sm btn-outline-primary mt-2" @onclick="()=>RetryAsync(job.Id)">Retry job</button>}
-   @if(!job.CanDelete){<p class="small mt-2 mb-0">Deletion unavailable while this job is active or publishing.</p>}
- </div></article>}
+@if (error is not null)
+{
+    <div class="alert alert-danger" role="alert"><strong>@errorCode</strong> @error <button class="btn btn-sm btn-outline-dark ms-2" @onclick="LoadAsync">Retry</button></div>
 }
-@code { [Parameter] public Guid Id {get;set;} private BatchOperationsView? view; private string? error,errorCode; protected override Task OnParametersSetAsync()=>LoadAsync(); private async Task LoadAsync(){try{error=errorCode=null;view=await Operations.GetBatchAsync(BatchId.From(Id));if(view is null){errorCode="batch.not_found";error="The batch was not found.";}}catch(Exception ex){errorCode="batch.load.failed";error=ex.Message;}} private async Task RetryAsync(JobId id){try{await Worker.RetryAsync(id,Time.GetUtcNow());await LoadAsync();}catch(Exception ex){errorCode="job.retry.failed";error=ex.Message;}} private static string Bytes(long? value)=>value is null?"Unknown":value<1024?$"{value:N0} B":value<1024L*1024?$"{value/1024d:N1} KB":$"{value/1024d/1024d:N1} MB"; }
+else if (view is null) { <p role="status">Loading batch details…</p> }
+else
+{
+    <nav aria-label="Breadcrumb"><a href="batches">Batches</a> / @view.Batch.Name</nav>
+    <h1>@view.Batch.Name</h1>
+    <p><strong>Status:</strong> @view.Batch.Status · <strong>Source:</strong> @view.Batch.Source · <strong>Created:</strong> @view.Batch.CreatedAt.LocalDateTime.ToString("g") · <strong>Publication:</strong> @view.Batch.Publication</p>
+
+    @if (PublishableJobs.Count > 0)
+    {
+        <section class="card card-body mb-3" aria-labelledby="publication-heading">
+            <h2 id="publication-heading" class="h5">Publish results</h2>
+            @if (view.Batch.Source == SourceKind.Immich) { <p class="mb-2">Destination is locked to the source Immich connection.</p> }
+            else
+            {
+                <label class="form-label" for="history-publish-destination">Immich destination</label>
+                <select id="history-publish-destination" class="form-select mb-3" @bind="publicationDestination" disabled="@publishing">
+                    <option value="">Choose a publish-capable connection</option>
+                    @foreach (var connection in publishConnections) { <option value="@connection.Id.Value">@connection.DisplayName</option> }
+                </select>
+            }
+            @if (publicationSummary is not null) { <div class="alert @publicationSummaryClass" role="status" aria-live="polite">@publicationSummary</div> }
+            <button class="btn btn-success" disabled="@(publishing || publicationSelection.Count == 0 || ResolveDestination() is null)" @onclick="PublishSelectedAsync">
+                @if (publishing) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }@(publishing ? $"Publishing {publishedCount}/{publishingTotal}..." : $"Publish selected ({publicationSelection.Count})")
+            </button>
+        </section>
+    }
+
+    @if (view.Jobs.Count == 0) { <div class="alert alert-light border">This batch has no remaining jobs.</div> }
+    @foreach (var job in view.Jobs)
+    {
+        var outcome = publicationResults.GetValueOrDefault(job.Id);
+        <article class="card mb-3">
+            <div class="card-header d-flex justify-content-between"><span><strong>@job.FileName</strong></span><span>@job.State · @PublicationLabel(outcome?.State ?? job.Publication)</span></div>
+            <div class="card-body">
+                <p>Preset: @job.Preset.Value · Source: @Bytes(job.SourceBytes) · Output: @Bytes(job.OutputBytes) @if (Savings(job.SourceBytes, job.OutputBytes) is { } savings) { <span class="text-success">· @savings</span> }</p>
+
+                @if (publishingJobs.Contains(job.Id))
+                {
+                    <div class="alert alert-info py-2" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Publishing to Immich…</div>
+                }
+                else if (PublishedAssetId(job) is { } assetId)
+                {
+                    <div class="alert alert-success py-2"><strong>@PublicationLabel(outcome?.State ?? job.Publication).</strong> Immich asset <span class="text-break">@assetId</span>
+                    @if (ImmichAssetUrl(job) is { } assetUrl) { <a class="btn btn-sm btn-outline-primary ms-2" href="@assetUrl" target="_blank" rel="noopener noreferrer">Open in Immich <span aria-hidden="true">↗</span></a> }</div>
+                }
+
+                @if (CanPublish(job))
+                {
+                    <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="@($"publish-history-{job.Id.Value:D}")" checked="@publicationSelection.Contains(job.Id)" disabled="@publishing" @onchange="e => SetSelected(job.Id, e.Value is true)" /><label class="form-check-label" for="@($"publish-history-{job.Id.Value:D}")">Publish this result</label></div>
+                    @if (job.State == JobState.NotBeneficial && !job.NotBeneficialPublicationOverride)
+                    {
+                        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="@($"force-history-{job.Id.Value:D}")" checked="@publicationForce.Contains(job.Id)" disabled="@publishing" @onchange="e => SetForced(job.Id, e.Value is true)" /><label class="form-check-label" for="@($"force-history-{job.Id.Value:D}")">Force publication although the output is not smaller</label></div>
+                    }
+                }
+                @if (outcome?.ErrorCode is { } publicationError) { <div class="text-danger"><strong>Publication failed:</strong> @PublicationError(publicationError)</div> }
+                @if (outcome?.PendingAlbumIds.Count > 0) { <div class="text-warning">Pending albums: @string.Join(", ", outcome.PendingAlbumIds)</div> }
+                @foreach (var warning in outcome?.Warnings ?? []) { <div class="text-warning small">@warning</div> }
+
+                @if (job.Findings.Count > 0) { <h2 class="h6">Validation findings</h2><ul>@foreach (var finding in job.Findings) { <li><strong>@finding.Severity — @finding.Code:</strong> @finding.Message</li> }</ul> }
+                <details><summary>Known artifacts (@job.Artifacts.Count(x => x.Exists) present)</summary><ul>@foreach (var artifact in job.Artifacts.Where(x => x.Exists)) { <li><code>@artifact.Key.Key</code> — @Bytes(artifact.SizeBytes)@(artifact.IsPartial ? " — partial" : "")</li> }</ul></details>
+                <details class="mt-2"><summary>Bounded log summary (@job.Logs.Count entries)</summary>@if (job.Logs.Count == 0) { <p>No log entries.</p> } else { <ol>@foreach (var entry in job.Logs) { <li><time>@entry.At.LocalDateTime.ToString("g")</time> <strong>@entry.Level / @entry.Code:</strong> @entry.Message</li> }</ol> }</details>
+                @if (job.CanRetry) { <button class="btn btn-sm btn-outline-primary mt-2" @onclick="() => RetryAsync(job.Id)">Retry job</button> }
+                @if (!job.CanDelete) { <p class="small mt-2 mb-0">Deletion unavailable while this job is active or publishing.</p> }
+            </div>
+        </article>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private BatchOperationsView? view; private string? error, errorCode;
+    private IReadOnlyList<ImmichConnectionView> allConnections = [], publishConnections = [];
+    private readonly Dictionary<JobId, PublicationResult> publicationResults = [];
+    private readonly HashSet<JobId> publicationSelection = [], publicationForce = [], publishingJobs = [];
+    private string publicationDestination = ""; private bool publishing; private int publishedCount, publishingTotal;
+    private string? publicationSummary, publicationSummaryClass;
+    private IReadOnlyList<JobOperationsView> PublishableJobs => view?.Jobs.Where(CanPublish).ToArray() ?? [];
+
+    protected override async Task OnParametersSetAsync() { if (allConnections.Count == 0) { allConnections = await Connections.ListAsync(); publishConnections = allConnections.Where(x => x.Enabled && x.Compatibility == CompatibilityResult.Compatible && x.Capabilities.CanPublish).ToArray(); var preferred = publishConnections.FirstOrDefault(x => x.IsDefault) ?? publishConnections.FirstOrDefault(); publicationDestination = preferred?.Id.Value.ToString("D") ?? ""; } await LoadAsync(); }
+    private async Task LoadAsync() { try { error = errorCode = null; view = await Operations.GetBatchAsync(BatchId.From(Id)); if (view is null) { errorCode = "batch.not_found"; error = "The batch was not found."; return; } foreach (var job in view.Jobs) { var result = await Publications.GetAsync(job.Id); if (result is not null) publicationResults[job.Id] = result; } } catch (Exception ex) { errorCode = "batch.load.failed"; error = ex.Message; } }
+    private async Task RetryAsync(JobId id) { try { await Worker.RetryAsync(id, Time.GetUtcNow()); await LoadAsync(); } catch (Exception ex) { errorCode = "job.retry.failed"; error = ex.Message; } }
+    private static bool CanPublish(JobOperationsView job) => job.State is JobState.Ready or JobState.NotBeneficial && job.Publication != PublicationState.Published && job.OutputBytes is not null;
+    private void SetSelected(JobId id, bool selected) { if (selected) publicationSelection.Add(id); else publicationSelection.Remove(id); }
+    private void SetForced(JobId id, bool forced) { if (forced) publicationForce.Add(id); else publicationForce.Remove(id); }
+    private ConnectionId? ResolveDestination() => view?.Batch.Source == SourceKind.Immich ? view.ConnectionId : Guid.TryParse(publicationDestination, out var id) ? ConnectionId.From(id) : null;
+    private async Task PublishSelectedAsync()
+    {
+        var destination = ResolveDestination() ?? throw new InvalidOperationException("Choose a publish-capable destination.");
+        var selected = publicationSelection.Select(x => new PublicationSelection(x, publicationForce.Contains(x))).ToArray();
+        publishing = true; publishedCount = 0; publishingTotal = selected.Length; publicationSummary = null; publishingJobs.Clear(); foreach (var item in selected) publishingJobs.Add(item.JobId); await InvokeAsync(StateHasChanged); await Task.Yield();
+        var progress = new Progress<PublicationResult>(result => { publicationResults[result.JobId] = result; publishingJobs.Remove(result.JobId); publishedCount++; _ = InvokeAsync(StateHasChanged); });
+        try { var results = await Publications.PublishAsync(BatchId.From(Id), destination, selected, progress); foreach (var result in results) publicationResults[result.JobId] = result; var succeeded = results.Count(x => x.State == PublicationState.Published); var partial = results.Count(x => x.State == PublicationState.PartiallyPublished); var failed = results.Count - succeeded - partial; publicationSummary = $"Publication finished: {succeeded} succeeded, {partial} partially published, {failed} failed."; publicationSummaryClass = failed == 0 && partial == 0 ? "alert-success" : succeeded > 0 || partial > 0 ? "alert-warning" : "alert-danger"; publicationSelection.Clear(); await LoadAsync(); }
+        catch (Exception ex) { errorCode = "publication.failed"; error = ex.Message; }
+        finally { publishing = false; publishingJobs.Clear(); }
+    }
+    private string? PublishedAssetId(JobOperationsView job) => publicationResults.TryGetValue(job.Id, out var result) ? result.AssetId : job.PublishedAssetId;
+    private string? ImmichAssetUrl(JobOperationsView job) { var assetId = PublishedAssetId(job); if (string.IsNullOrWhiteSpace(assetId)) return null; var destination = publicationResults.TryGetValue(job.Id, out var result) ? result.DestinationConnectionId : view?.ConnectionId; var connection = destination is null ? null : allConnections.FirstOrDefault(x => x.Id == destination.Value); return connection is null || !Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var root) ? null : new Uri(root, $"photos/{Uri.EscapeDataString(assetId)}").AbsoluteUri; }
+    private static string PublicationLabel(PublicationState state) => state switch { PublicationState.NotRequested => "Not published", PublicationState.Publishing => "Publishing", PublicationState.Published => "Published", PublicationState.PartiallyPublished => "Partially published", PublicationState.Failed => "Failed", _ => state.ToString() };
+    private static string PublicationError(string code) => code switch { "publication.upload.ambiguous" => "The upload result is uncertain. Retry safely checks Immich before uploading again.", "publication.album.sync_failed" => "The video was uploaded, but album synchronization is incomplete. Retry to finish it.", "publication.force.required" => "Explicitly confirm this result because it did not reduce the file size.", _ => code };
+    private static string? Savings(long? source, long? output) { if (source is not > 0 || output is null) return null; var value = 100m * (source.Value - output.Value) / source.Value; return value >= 0 ? $"{value:N1}% saved" : $"{-value:N1}% larger"; }
+    private static string Bytes(long? value) => value switch { null => "Unknown", < 1024 => $"{value:N0} B", < 1024L * 1024 => $"{value / 1024d:N1} KB", < 1024L * 1024 * 1024 => $"{value / 1024d / 1024d:N1} MB", _ => $"{value / 1024d / 1024d / 1024d:N2} GB" };
+}

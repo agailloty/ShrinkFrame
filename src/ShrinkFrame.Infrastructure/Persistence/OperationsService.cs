@@ -62,9 +62,11 @@ public sealed class OperationsService(
                 job.Logs.OrderByDescending(x => x.At).Take(50).OrderBy(x => x.At)
                     .Select(x => new JobLogEntry(x.At, x.Level, x.Code, x.Message)).ToArray(),
                 artifacts, CanRetry(job.State), CanDelete(job.State, job.PublicationState)
-                    && !IsReferencedByAnotherJob(job, allReferences.Select(x => (x.Id, x.SourceArtifactKey, x.OutputArtifactKey))));
+                    && !IsReferencedByAnotherJob(job, allReferences.Select(x => (x.Id, x.SourceArtifactKey, x.OutputArtifactKey))),
+                job.NotBeneficialPublicationOverride, job.PublishedAssetId);
         }).ToArray();
-        return new(history with { OutputBytes = jobs.Sum(x => x.OutputBytes ?? 0) }, jobs);
+        return new(history with { OutputBytes = jobs.Sum(x => x.OutputBytes ?? 0) },
+            entity.ConnectionId is Guid connectionId ? ConnectionId.From(connectionId) : null, jobs);
     }
 
     public async Task<StoragePageView> GetStorageAsync(CancellationToken token = default)

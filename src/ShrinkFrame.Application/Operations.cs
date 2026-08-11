@@ -15,8 +15,10 @@ public sealed record ArtifactView(ArtifactRef Key, long SizeBytes, bool Exists, 
 public sealed record JobOperationsView(JobId Id, string FileName, JobState State,
     PublicationState Publication, DateTimeOffset UpdatedAt, PresetId Preset, long? SourceBytes,
     long? OutputBytes, IReadOnlyList<ValidationFinding> Findings, IReadOnlyList<JobLogEntry> Logs,
-    IReadOnlyList<ArtifactView> Artifacts, bool CanRetry, bool CanDelete);
-public sealed record BatchOperationsView(BatchHistoryItem Batch, IReadOnlyList<JobOperationsView> Jobs);
+    IReadOnlyList<ArtifactView> Artifacts, bool CanRetry, bool CanDelete,
+    bool NotBeneficialPublicationOverride, string? PublishedAssetId);
+public sealed record BatchOperationsView(BatchHistoryItem Batch, ConnectionId? ConnectionId,
+    IReadOnlyList<JobOperationsView> Jobs);
 public sealed record StorageJobView(BatchId BatchId, string BatchName, JobId JobId, string FileName,
     JobState State, DateTimeOffset UpdatedAt, long ArtifactBytes, int ArtifactCount, bool CanDelete);
 public sealed record OrphanArtifactView(ArtifactRef Key, long SizeBytes, DateTimeOffset LastModifiedAt);

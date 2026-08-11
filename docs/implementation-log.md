@@ -705,6 +705,7 @@ Summary:
 - Added the current encoded output size during compression and the final compressed size with percentage saved (or percentage larger for non-beneficial results). The worker now persists an authoritative final size and 100% completion snapshot after validation.
 - Added interactive grouped publication feedback: immediate per-video publishing indicators, incremental completion updates, disabled duplicate submission, success/partial/failure badges, readable error guidance, Immich asset IDs, and a final grouped summary. The publication service now reports each completed item without waiting for the entire group.
 - Added an `Open in Immich` link for published assets using the verified `/photos/{assetId}` web route. Publication results now carry their persisted destination connection ID so links remain correct for browser-upload batches after reconnect, without exposing API keys.
+- Extended existing batch details with the same publication workflow: eligible result selection, browser-source destination choice, per-result `NotBeneficial` confirmation, incremental publication feedback, retryable partial/failed results, final summary, persisted Immich asset IDs, and direct `Open in Immich` links for already-published videos.
 - Serialized automatic refresh with user actions and cancel the refresh loop when the component is disposed.
 
 Decision deviations:
