@@ -95,11 +95,10 @@ Do not use internal timeline endpoints or deprecated update endpoints. Before im
   filter, refresh, and Interactive Server reconnect changes, while the connection key prevents a later
   batch from mixing sources. `Select Page` affects the visible post-refinement page only; no Select All
   Results operation exists.
-- Supported global sorts are capture time ascending and descending, mapped to Immich `AssetOrder`
-  `asc` and `desc`. The v3.1 metadata asset DTO does not promise original byte size, so the checked-in
-  UI does not offer size filtering or size sorting. The application contract can refine a loaded page
-  by known byte sizes if a future version-matched operation supplies them; unknown sizes never pass
-  that refinement.
+- Supported server sorts are capture time ascending and descending, mapped to Immich `AssetOrder`
+  `asc` and `desc`. Size sorting is implemented globally by walking every matching 50-item metadata
+  page, reading optional `exifInfo.fileSizeInByte`, sorting the collected metadata, and repaginating
+  it in ShrinkFrame. Assets with unknown sizes appear after all known-size assets.
 
 ## Transfers
 

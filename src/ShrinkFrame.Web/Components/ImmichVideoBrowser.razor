@@ -19,17 +19,17 @@
             <div class="col-md-3"><label class="form-label" for="taken-after">Taken after</label><input id="taken-after" type="date" class="form-control" @bind="takenAfter" /></div>
             <div class="col-md-3"><label class="form-label" for="taken-before">Taken before</label><input id="taken-before" type="date" class="form-control" @bind="takenBefore" /></div>
             <div class="col-md-3"><label class="form-label" for="album">Album</label><select id="album" class="form-select" @bind="albumId"><option value="">All albums</option>@foreach (var album in albums) { <option value="@album.Id">@album.Name (@album.AssetCount)</option> }</select></div>
-            <div class="col-md-2"><label class="form-label" for="sort">Sort</label><select id="sort" class="form-select" @bind="sort"><option value="TakenNewest">Newest taken</option><option value="TakenOldest">Oldest taken</option></select></div>
+            <div class="col-md-2"><label class="form-label" for="sort">Sort</label><select id="sort" class="form-select" @bind="sort"><option value="TakenNewest">Newest taken</option><option value="TakenOldest">Oldest taken</option><option value="SizeLargest">Largest file</option><option value="SizeSmallest">Smallest file</option></select></div>
             <div class="col-md-1"><button class="btn btn-outline-primary" @onclick="ApplyFiltersAsync">Apply</button></div>
         </div>
-        <p class="form-text">Immich applies taken date, album, and taken-date sort globally. Byte size is unavailable in the v3.1 metadata response, so no misleading global size filter or size sort is offered.</p>
+        <p class="form-text">Results are shown in pages of 50. Size sorting loads all matching metadata and sorts it globally; videos with an unknown size appear last.</p>
 
         @if (page is not null)
         {
             <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
                 <button class="btn btn-sm btn-outline-primary" @onclick="SelectPageAsync">Select current page</button>
                 <button class="btn btn-sm btn-outline-secondary" disabled="@(selection.Count == 0)" @onclick="ClearAsync">Clear selection</button>
-                <span>@selection.Count selected across pages</span><span class="text-muted">Page @(page.Page) · @(page.Total) total results</span>
+                <span>@selection.Count selected across pages</span><span class="text-muted">Page @(page.Page) of @TotalPages(page) · @(page.Total) total results</span>
             </div>
             <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
                 @foreach (var video in page.Items)
@@ -124,6 +124,7 @@
         : value < 1024L * 1024 ? $"{value / 1024d:N1} KB"
         : value < 1024L * 1024 * 1024 ? $"{value / 1024d / 1024d:N1} MB"
         : $"{value / 1024d / 1024d / 1024d:N1} GB";
+    private static int TotalPages(ImmichVideoPage value) => Math.Max(1, (int)Math.Ceiling(value.Total / (double)value.PageSize));
     private static DateTimeOffset? ToOffset(DateTime? value, bool endOfDay = false) => value is null ? null : new DateTimeOffset(endOfDay ? value.Value.Date.AddDays(1).AddTicks(-1) : value.Value.Date);
     private async Task RunAsync(Func<Task> action) { ClearError(); try { await action(); } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (KeyNotFoundException) { errorCode = "connection.deleted"; error = "The connection was deleted. Choose another connection."; } }
     private void ClearError() { errorCode = null; error = null; }

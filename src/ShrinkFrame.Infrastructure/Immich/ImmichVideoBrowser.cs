@@ -21,30 +21,65 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
     public async Task<ImmichVideoPage> SearchAsync(ImmichVideoSearch search, CancellationToken cancellationToken = default)
     {
         if (search.Page < 1) throw new ImmichConnectionException("immich.search.page_invalid", "Page must be at least one.");
+        if (search.Page > int.MaxValue / PageSize) throw new ImmichConnectionException("immich.search.page_invalid", "Page is too large.");
         if (search.TakenAfter > search.TakenBefore) throw new ImmichConnectionException("immich.search.period_invalid", "Taken after must precede taken before.");
         return await WithClientAsync(search.ConnectionId, async client =>
         {
-            var body = new Dictionary<string, object?>
+            if (search.Sort is ImmichVideoSort.SizeLargest or ImmichVideoSort.SizeSmallest)
             {
-                ["type"] = "VIDEO", ["withExif"] = true, ["withDeleted"] = false,
-                ["page"] = search.Page, ["size"] = PageSize,
-                ["order"] = search.Sort == ImmichVideoSort.TakenOldest ? "asc" : "desc",
-            };
-            if (search.TakenAfter is not null) body["takenAfter"] = search.TakenAfter.Value;
-            if (search.TakenBefore is not null) body["takenBefore"] = search.TakenBefore.Value;
-            if (!string.IsNullOrWhiteSpace(search.AlbumId)) body["albumIds"] = new[] { search.AlbumId };
-            using var document = await client.JsonAsync(HttpMethod.Post, "api/search/metadata", body, cancellationToken);
-            var assets = document.RootElement.GetProperty("assets");
-            var mapped = assets.GetProperty("items").EnumerateArray().Where(IsVisibleVideo).Select(MapSummary).ToArray();
+                var all = new List<ImmichVideoSummary>();
+                var immichPage = 1;
+                int? nextPage;
+                do
+                {
+                    var pageResult = await FetchPageAsync(client, search, immichPage, cancellationToken);
+                    all.AddRange(pageResult.Items);
+                    nextPage = pageResult.NextPage;
+                    if (nextPage is not null && nextPage <= immichPage)
+                        throw new ImmichConnectionException("connection.version_mismatch", "Immich returned an invalid next page value. Retest the connection.");
+                    immichPage = nextPage ?? 0;
+                } while (nextPage is not null);
+
+                var sorted = SortBySize(all, search.Sort == ImmichVideoSort.SizeLargest);
+                var items = sorted.Skip((search.Page - 1) * PageSize).Take(PageSize).ToArray();
+                int? localNextPage = search.Page * PageSize < sorted.Count ? search.Page + 1 : null;
+                return new ImmichVideoPage(items, search.Page, PageSize, sorted.Count, localNextPage, false);
+            }
+
+            var result = await FetchPageAsync(client, search, search.Page, cancellationToken);
+            var mapped = result.Items.ToArray();
             var refined = search.PageMinimumBytes is not null || search.PageMaximumBytes is not null;
             if (refined)
                 mapped = mapped.Where(x => x.SizeBytes is not null
                     && (search.PageMinimumBytes is null || x.SizeBytes >= search.PageMinimumBytes)
                     && (search.PageMaximumBytes is null || x.SizeBytes <= search.PageMaximumBytes)).ToArray();
-            return new ImmichVideoPage(mapped, search.Page, PageSize, assets.GetProperty("total").GetInt32(),
-                ReadNullablePage(assets, "nextPage"), refined);
+            return new ImmichVideoPage(mapped, search.Page, PageSize, result.Total, result.NextPage, refined);
         }, cancellationToken);
     }
+
+    private static async Task<SearchPage> FetchPageAsync(BrowserHttpClient client, ImmichVideoSearch search,
+        int page, CancellationToken cancellationToken)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["type"] = "VIDEO", ["withExif"] = true, ["withDeleted"] = false,
+            ["page"] = page, ["size"] = PageSize,
+            ["order"] = search.Sort == ImmichVideoSort.TakenOldest ? "asc" : "desc",
+        };
+        if (search.TakenAfter is not null) body["takenAfter"] = search.TakenAfter.Value;
+        if (search.TakenBefore is not null) body["takenBefore"] = search.TakenBefore.Value;
+        if (!string.IsNullOrWhiteSpace(search.AlbumId)) body["albumIds"] = new[] { search.AlbumId };
+        using var document = await client.JsonAsync(HttpMethod.Post, "api/search/metadata", body, cancellationToken);
+        var assets = document.RootElement.GetProperty("assets");
+        return new SearchPage(assets.GetProperty("items").EnumerateArray().Where(IsVisibleVideo).Select(MapSummary).ToArray(),
+            assets.GetProperty("total").GetInt32(), ReadNullablePage(assets, "nextPage"));
+    }
+
+    internal static IReadOnlyList<ImmichVideoSummary> SortBySize(IEnumerable<ImmichVideoSummary> items, bool descending)
+        => (descending
+                ? items.OrderByDescending(x => x.SizeBytes.HasValue).ThenByDescending(x => x.SizeBytes)
+                : items.OrderByDescending(x => x.SizeBytes.HasValue).ThenBy(x => x.SizeBytes))
+            .ThenBy(x => x.AssetId, StringComparer.Ordinal).ToArray();
 
     public Task<IReadOnlyList<ImmichAlbum>> ListAlbumsAsync(ConnectionId connectionId, CancellationToken cancellationToken = default)
         => WithClientAsync<IReadOnlyList<ImmichAlbum>>(connectionId, async client =>
@@ -198,7 +233,13 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
     private static ImmichVideoSummary MapSummary(JsonElement x) => new(RequiredString(x, "id"), RequiredString(x, "originalFileName"),
         OptionalString(x, "originalMimeType"), RequiredDate(x, "fileCreatedAt"), ReadDuration(x), OptionalInt(x, "width"), OptionalInt(x, "height"),
         x.TryGetProperty("exifInfo", out var exif) ? ReadFileSize(exif) : null);
-    private static int? ReadNullablePage(JsonElement x, string name) => x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null;
+    internal static int? ReadNullablePage(JsonElement x, string name)
+    {
+        if (!x.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)) return number;
+        if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out number)) return number;
+        return null;
+    }
     private static string RequiredString(JsonElement x, string name) => x.GetProperty(name).GetString() ?? throw new JsonException($"{name} is missing.");
     private static string? OptionalString(JsonElement x, string name) => x.ValueKind == JsonValueKind.Object && x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static int? OptionalInt(JsonElement x, string name) => x.ValueKind == JsonValueKind.Object && x.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : null;
@@ -215,6 +256,7 @@ public sealed class ImmichVideoBrowser(IImmichConnectionRepository connections,
         if (!response.IsSuccessStatusCode) throw new ImmichConnectionException("immich.http_error", $"Immich returned HTTP {(int)response.StatusCode}.");
         await Task.CompletedTask;
     }
+    private sealed record SearchPage(IReadOnlyList<ImmichVideoSummary> Items, int Total, int? NextPage);
 }
 
 internal sealed class BrowserHttpClient : IDisposable

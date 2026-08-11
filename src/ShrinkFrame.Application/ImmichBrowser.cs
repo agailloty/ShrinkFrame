@@ -2,7 +2,7 @@ using ShrinkFrame.Domain;
 
 namespace ShrinkFrame.Application;
 
-public enum ImmichVideoSort { TakenNewest, TakenOldest }
+public enum ImmichVideoSort { TakenNewest, TakenOldest, SizeLargest, SizeSmallest }
 
 public sealed record ImmichVideoSearch(ConnectionId ConnectionId, int Page = 1,
     DateTimeOffset? TakenAfter = null, DateTimeOffset? TakenBefore = null,

@@ -647,3 +647,20 @@ Verification performed:
 - `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
 - `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed: 209 tests, 0 failed, 0 skipped (167 Domain and 42 Infrastructure).
 - `git diff --check` — completed with no whitespace errors.
+## 2026-08-10 — Immich multi-page browsing and size sorting
+
+Summary:
+
+- Accepted numeric and string `nextPage` values from Immich so navigation continues beyond the first 50 results.
+- Added global largest/smallest file sorting by collecting all matching metadata pages server-side and repaginating the sorted result in 50-item UI pages; unknown sizes sort last.
+- Added explicit page counts and automated coverage for continuation-token parsing and size ordering.
+
+Decision deviations:
+
+- Size sorting is now available because `exifInfo.fileSizeInByte` is already consumed when supplied. It may issue multiple bounded metadata requests, but never downloads video content.
+
+Verification performed:
+
+- `git diff --check` — completed with no whitespace errors.
+- With the repository's `global.json` temporarily pointed at the installed stable SDK 10.0.102, `dotnet build ShrinkFrame.sln --configuration Release --no-restore` completed with zero warnings and zero errors; the required 10.0.302 pin was then restored.
+- Under the same stable SDK verification, `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` passed 213 tests (167 Domain and 46 Infrastructure) with zero failures or skips.
