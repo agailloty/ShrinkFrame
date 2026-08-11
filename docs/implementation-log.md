@@ -1,5 +1,36 @@
 # Implementation log
 
+## 2026-08-11 - Publish tagged containers to GHCR
+
+Summary:
+
+- Extended the existing GitHub Actions workflow with a publication job that runs only for Git tag pushes and
+  only after the full verification job succeeds.
+- The job publishes `ghcr.io/<owner>/<repository>:<git-tag>`, lowercases the GHCR repository path, normalizes
+  unsupported container-tag characters to `-`, and adds OCI source, revision, and version labels.
+- Authentication uses the automatic repository-scoped `GITHUB_TOKEN`. The `packages: write` permission is
+  limited to the publication job; pull-request and branch verification retain read-only contents access.
+- Documented the published image coordinates, tag normalization, package visibility, and pull command. No
+  mutable `latest` alias is created automatically.
+
+Official contract verification (accessed 2026-08-11):
+
+- GitHub's current container-publishing documentation confirms GHCR login at `ghcr.io` using
+  `github.actor` and `GITHUB_TOKEN`, with `packages: write` and `contents: read` job permissions:
+  <https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images>.
+- GitHub's Container registry documentation confirms that workflow publication with `GITHUB_TOKEN` links the
+  package to its repository and recommends the `org.opencontainers.image.source` label:
+  <https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry>.
+
+Verification performed:
+
+- `actionlint 1.7.7 .github/workflows/ci.yml` - succeeded with no findings.
+- `docker compose config --quiet` - succeeded; Docker emitted only a sandbox-local warning that the user-level
+  Docker configuration file could not be read.
+- `git diff --check` - succeeded with no whitespace errors.
+- The actual GHCR push requires a Git tag pushed to GitHub and therefore was not performed from the local
+  checkout.
+
 ## 2026-08-10 - .NET SDK alignment for CI and container builds
 
 Summary:

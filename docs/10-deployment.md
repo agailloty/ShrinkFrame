@@ -127,7 +127,7 @@ Version 1.0 is HTTP-only. Documentation must show generic reverse-proxy requirem
 
 ## CI
 
-GitHub Actions on pull request/push:
+GitHub Actions on pull request, branch push, and tag push:
 
 1. restore with locked dependencies when lock files are adopted;
 2. build Release;
@@ -135,6 +135,12 @@ GitHub Actions on pull request/push:
 4. build Docker image;
 5. validate Compose configuration;
 6. never require Immich secrets.
+
+After the verification job succeeds for a tag push, a separate least-privilege job builds the same Dockerfile
+and publishes `ghcr.io/<owner>/<repository>:<git-tag>`. The GHCR path is lowercased and `/` in the Git tag is
+normalized with other unsupported characters to `-`. Publication authenticates with the automatic,
+repository-scoped `GITHUB_TOKEN`; only that job receives `packages: write`. The image includes OCI source,
+revision, and version labels. No mutable `latest` tag is produced implicitly.
 
 The workflow pins third-party action commits, uses the stable SDK selected by `global.json`, validates Compose,
 builds the digest-pinned image, checks UID/GID, prints FFmpeg/ffprobe versions, and verifies `libx264`. No Immich

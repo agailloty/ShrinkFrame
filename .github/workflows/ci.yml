@@ -11,6 +11,8 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
@@ -41,3 +43,41 @@ jobs:
           docker run --rm --entrypoint /usr/bin/ffmpeg shrinkframe:ci -hide_banner -version
           docker run --rm --entrypoint /usr/bin/ffprobe shrinkframe:ci -hide_banner -version
           docker run --rm --entrypoint /bin/bash shrinkframe:ci -c "ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264"
+
+  publish-container:
+    if: github.ref_type == 'tag'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Define image coordinates
+        id: image
+        shell: bash
+        run: |
+          image_name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          image_tag="$(printf '%s' "${GITHUB_REF_NAME}" | LC_ALL=C sed -E 's/[^A-Za-z0-9_.-]+/-/g; s/^[.-]+//')"
+          image_tag="${image_tag:0:128}"
+          test -n "${image_tag}"
+          echo "name=${image_name}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build container
+        run: |
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.version=${GITHUB_REF_NAME}" \
+            --tag "${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}" \
+            .
+      - name: Publish container
+        run: docker push "${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}"

@@ -37,6 +37,20 @@ See [deployment and operations](docs/10-deployment.md) for configuration, backup
 disk pressure, log, shutdown, and reverse-proxy guidance. Release evidence and remaining blockers are in
 [version 1.0 release evidence](docs/11-version-1-release-evidence.md).
 
+## Published container images
+
+Pushing a Git tag runs the full CI verification and then publishes the application to GitHub Container
+Registry with that tag. Repository names are normalized to lowercase for GHCR; characters that container tags
+do not support are represented as `-`. For example, Git tag `v1.0.0` publishes:
+
+```bash
+docker pull ghcr.io/agailloty/shrinkframe:v1.0.0
+```
+
+The workflow uses GitHub's repository-scoped `GITHUB_TOKEN`; no registry credential needs to be configured.
+New GHCR packages are private by default, so change the package visibility in GitHub if anonymous pulls are
+required.
+
 ## Develop and verify
 
 The repository pins stable .NET SDK `10.0.302` and targets `net10.0`.
