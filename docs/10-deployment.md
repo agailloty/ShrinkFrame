@@ -6,7 +6,10 @@
 > disk, and publish through every configured Immich connection. Bind and firewall it to a trusted LAN or
 > Tailscale network. Direct public Internet exposure is unsupported.
 
-The version 1.0 Docker Compose defines one ShrinkFrame service, one persistent named volume mounted at `/data`, HTTP exposure, restart policy, and health check. No reverse proxy is bundled.
+The version 1.0 Docker Compose defines one ShrinkFrame service using the immutable full image reference
+`ghcr.io/agailloty/shrinkframe:v1.0.0`, one persistent named volume mounted at `/data`, HTTP exposure, restart
+policy, and health check. It pulls the published release rather than building a local image. No reverse proxy
+is bundled.
 
 The final runtime image:
 

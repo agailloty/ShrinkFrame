@@ -717,3 +717,18 @@ Verification performed:
 - `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
 - `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — completed successfully.
 - `git diff --check` — completed with no whitespace errors.
+## 2026-08-11 — Compose GHCR image reference
+
+Summary:
+
+- Changed the Compose service from the local `shrinkframe:0.1.0-poc` build target to the complete immutable published image reference `ghcr.io/agailloty/shrinkframe:v1.0.0`.
+- Removed the Compose `build` section and updated deployment commands to pull the GHCR release before startup.
+
+Decision deviations:
+
+- None.
+
+Verification performed:
+
+- `docker compose config --quiet` — completed successfully.
+- `git diff --check` — completed with no whitespace errors.

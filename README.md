@@ -12,7 +12,8 @@ Requirements: Docker Engine with Compose v2, a Linux container host, and enough 
 initial sizing assumption is 4 CPU cores, 8 GB RAM, and about 70 GB free).
 
 ```bash
-docker compose up --build -d
+docker compose pull
+docker compose up -d
 docker compose ps
 curl --fail http://localhost:5080/health/ready
 ```
@@ -22,10 +23,11 @@ use `docker compose down --volumes` unless permanent data loss is intended. Set 
 before starting, for example:
 
 ```bash
-SHRINKFRAME_HTTP_PORT=5080 \
-SHRINKFRAME_ALLOWED_HOSTS='shrinkframe.example.lan;192.0.2.10' \
-SHRINKFRAME_ORIGIN='http://shrinkframe.example.lan:5080' \
-docker compose up --build -d
+export SHRINKFRAME_HTTP_PORT=5080
+export SHRINKFRAME_ALLOWED_HOSTS='shrinkframe.example.lan;192.0.2.10'
+export SHRINKFRAME_ORIGIN='http://shrinkframe.example.lan:5080'
+docker compose pull
+docker compose up -d
 ```
 
 The image runs as UID/GID `1654:1654`. A fresh named volume is initialized with the correct ownership. For

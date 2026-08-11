@@ -2,10 +2,7 @@ name: shrinkframe
 
 services:
   shrinkframe:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: shrinkframe:0.1.0-poc
+    image: ghcr.io/agailloty/shrinkframe:v1.0.0
     restart: unless-stopped
     init: false
     stop_grace_period: 35s
