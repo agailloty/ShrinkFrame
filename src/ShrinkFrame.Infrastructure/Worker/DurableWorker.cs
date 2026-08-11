@@ -173,7 +173,10 @@ public sealed class DurableWorker(IServiceScopeFactory scopes, DurableWorkerOpti
             var outputBytes = new FileInfo(request.PartialOutputPath).Length;
             await storage.FinalizeAsync(allocation.Partial, allocation.Final, cancellation.Token);
             job.CompleteValidation(outputBytes, allocation.Final, findings, time.GetUtcNow()); await services.GetRequiredService<ICompressionJobRepository>().UpdateAsync(job, version, shutdown);
-            var latest = progressHub.GetLatest(job.Id) ?? new(null, null, time.GetUtcNow()); await PersistProgressAsync(job.Id, latest, shutdown);
+            var latest = progressHub.GetLatest(job.Id) ?? new(null, null, time.GetUtcNow());
+            if (latest.Compression is { } completedProgress)
+                latest = latest with { Compression = completedProgress with { Percentage = 100m, OutputBytes = outputBytes }, UpdatedAt = time.GetUtcNow() };
+            await PersistProgressAsync(job.Id, latest, shutdown);
             await queue.AppendLogAsync(job.Id, new(time.GetUtcNow(), "Information", "compression.completed", $"Compression completed ({outputBytes} bytes, {job.State})."), shutdown);
         }
         catch (OperationCanceledException) when (!shutdown.IsCancellationRequested) { await CancelClaimAsync(job, version, "compression.cancelled", shutdown); }

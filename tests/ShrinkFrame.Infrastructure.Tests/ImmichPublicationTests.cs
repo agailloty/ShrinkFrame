@@ -43,10 +43,13 @@ public sealed class ImmichPublicationTests
         var prepared = await PrepareAsync(sourceConnection, [albumA, albumB]);
         var transport = new FakeTransport { FailAlbumOnce = albumB };
         var service = Service(sourceConnection, otherConnection, transport);
+        var reported = new List<PublicationResult>();
 
         var first = (await service.PublishAsync(prepared.BatchId, sourceConnection,
-            [new(prepared.JobId, false)])).Single();
+            [new(prepared.JobId, false)], new InlineProgress<PublicationResult>(reported.Add))).Single();
         Assert.AreEqual(PublicationState.PartiallyPublished, first.State);
+        Assert.AreEqual(sourceConnection, first.DestinationConnectionId);
+        Assert.AreEqual(first, reported.Single());
         CollectionAssert.AreEqual(new[] { albumB }, first.PendingAlbumIds.ToArray());
         CollectionAssert.Contains(first.Warnings.ToArray(), "publication.metadata.not_guaranteed");
         Assert.AreEqual(1, transport.UploadCalls);
@@ -109,6 +112,11 @@ public sealed class ImmichPublicationTests
     private ImmichPublicationService Service(ConnectionId source, ConnectionId other, FakeTransport transport) => new(
         new BatchRepository(db), new CompressionJobRepository(db), new PublicationCheckpointRepository(db),
         new FakeConnections([View(source), View(other)]), transport, storage, new FixedTimeProvider(Now));
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
 
     private async Task<Prepared> PrepareAsync(ConnectionId connection, string[] albums, bool notBeneficial = false)
     {

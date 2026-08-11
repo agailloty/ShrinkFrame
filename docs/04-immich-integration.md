@@ -139,6 +139,12 @@ replays an ambiguous multipart body.
 
 An album-add failure retains the new asset and transitions to `PartiallyPublished`. Retry only missing album operations.
 
+After Immich returns or ShrinkFrame adopts a published asset ID, the UI links to the authenticated Immich web
+viewer at `{site-root}/photos/{assetId}`. The destination connection ID is returned with persisted publication
+status so browser-upload publications still resolve to the correct Immich instance after reconnect. This web
+route was verified against the official Immich v1.136 deep-link release notes on 2026-08-11. The link contains
+only the asset ID and never an API key.
+
 ## Preview file size
 
 The browser reads the optional `exifInfo.fileSizeInByte` value returned by Immich when `withExif=true` and

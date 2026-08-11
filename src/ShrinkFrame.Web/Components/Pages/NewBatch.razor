@@ -89,10 +89,27 @@
     {
         <tr>
             <td><input type="checkbox" class="form-check-input" aria-label="Select @job.FileName for publication"
-                checked="@publicationSelection.Contains(job.Id)" disabled="@(job.PublicationState == PublicationState.Published)"
+                checked="@publicationSelection.Contains(job.Id)" disabled="@(publishing || job.PublicationState == PublicationState.Published)"
                 @onchange="e => SetPublicationSelected(job.Id, e.Value is true)" /></td>
             <td>@job.FileName</td>
-            <td>@job.PublicationState @if (job.PublishedAssetId is not null) { <div class="small">Asset @job.PublishedAssetId</div> }</td>
+            <td>
+                @if (publishingJobs.Contains(job.Id))
+                {
+                    <span class="d-inline-flex align-items-center gap-2" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Publishing...</span>
+                }
+                else
+                {
+                    <span class="badge @PublicationBadge(PublicationStateFor(job))">@PublicationLabel(PublicationStateFor(job))</span>
+                }
+                @if (PublishedAssetIdFor(job) is { } assetId)
+                {
+                    <div class="small text-break">Immich asset @assetId</div>
+                    @if (ImmichAssetUrl(job) is { } assetUrl)
+                    {
+                        <a class="btn btn-sm btn-outline-primary mt-1" href="@assetUrl" target="_blank" rel="noopener noreferrer">Open in Immich <span aria-hidden="true">↗</span></a>
+                    }
+                }
+            </td>
             <td>
                 @if (job.State == JobState.NotBeneficial && !job.NotBeneficialPublicationOverride)
                 {
@@ -104,13 +121,17 @@
                 {
                     @foreach (var warning in outcome.Warnings) { <div class="text-warning small">@warning</div> }
                     @if (outcome.PendingAlbumIds.Count > 0) { <div class="text-warning small">Pending albums: @string.Join(", ", outcome.PendingAlbumIds)</div> }
-                    @if (outcome.ErrorCode is not null) { <div class="text-danger small">@outcome.ErrorCode</div> }
+                    @if (outcome.ErrorCode is not null) { <div class="text-danger small"><strong>Publication failed:</strong> @PublicationError(outcome.ErrorCode)</div> }
+                    else if (outcome.State == PublicationState.Published) { <div class="text-success small"><strong>Successfully published to Immich.</strong></div> }
                 }
             </td>
         </tr>
     }
     </tbody></table></div>
-    <button class="btn btn-success" disabled="@(publicationSelection.Count == 0 || ResolvePublicationDestination() is null)" @onclick="PublishSelectedAsync">Publish selected</button>
+    @if (publicationSummary is not null) { <div class="alert @publicationSummaryClass mt-3 mb-2" role="status" aria-live="polite">@publicationSummary</div> }
+    <button class="btn btn-success" disabled="@(publishing || publicationSelection.Count == 0 || ResolvePublicationDestination() is null)" @onclick="PublishSelectedAsync">
+        @if (publishing) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }@(publishing ? $"Publishing {publishedCount}/{publishingTotal}..." : "Publish selected")
+    </button>
 </section>
 }
 }
@@ -121,17 +142,36 @@
     <h2 id="processing-heading" class="h4">5. Processing</h2>
     @if (batchProgress is not null)
     {
-        <p>@batchProgress.FinishedJobs of @batchProgress.TotalJobs finished · @batchProgress.FailedJobs failed · @batchProgress.CancelledJobs cancelled</p>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2" role="status" aria-live="polite">
+            @if (IsProcessing) { <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span> }
+            <strong>@BatchActivityText</strong>
+            <span class="text-body-secondary">@batchProgress.FinishedJobs of @batchProgress.TotalJobs finished · @batchProgress.FailedJobs failed · @batchProgress.CancelledJobs cancelled</span>
+        </div>
         <progress class="w-100" max="100" value="@batchProgress.Percentage" aria-label="Batch progress">@batchProgress.Percentage%</progress>
+        <div class="form-text">Updates automatically every second. Last update: @LastUpdatedText</div>
     }
-    <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="RefreshResultsAsync">Refresh results</button>
-    <div class="table-responsive mt-3"><table class="table align-middle"><thead><tr><th>Video</th><th>State</th><th>Progress</th><th>Technical details</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
+    <button class="btn btn-sm btn-outline-secondary mt-2" disabled="@refreshing" @onclick="RefreshResultsAsync">@(refreshing ? "Refreshing..." : "Refresh now")</button>
+    <div class="table-responsive mt-3"><table class="table align-middle"><thead><tr><th>Video</th><th>State</th><th>Progress</th><th>Compressed size / savings</th><th>Technical details</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
     @foreach (var job in batch.Jobs)
     {
         var runtime = runtimes.GetValueOrDefault(job.Id);
         <tr><td>@job.FileName
             @foreach (var finding in job.Findings) { <div class="small @(finding.IsBlocking ? "text-danger" : "text-warning")">@finding.Code: @finding.Message</div> }
-        </td><td>@(runtime?.State ?? job.State)</td><td>@ProgressText(runtime?.Progress)</td><td>
+        </td><td><span class="d-inline-flex align-items-center gap-2">@if (IsActive(runtime?.State ?? job.State)) { <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> }<span>@StateText(runtime?.State ?? job.State)</span></span></td><td>
+            <div>@ProgressText(runtime?.Progress, runtime?.State ?? job.State)</div>
+            @if (ProgressPercentage(runtime?.Progress, runtime?.State ?? job.State) is decimal jobPercent)
+            {
+                <progress class="w-100" max="100" value="@jobPercent" aria-label="Progress for @job.FileName">@jobPercent%</progress>
+            }
+        </td><td>
+            @if (runtime?.Progress?.Compression?.OutputBytes is long outputBytes)
+            {
+                <div><strong>@Bytes(outputBytes)</strong></div>
+                <div class="small @SavingsClass(job.SizeBytes, outputBytes)">@SavingsText(job.SizeBytes, outputBytes)</div>
+                @if ((runtime?.State ?? job.State) == JobState.Compressing) { <div class="small text-body-secondary">Current encoded size</div> }
+            }
+            else { <span class="text-body-secondary">—</span> }
+        </td><td>
             <details><summary>FPS, bitrate and log</summary>
                 <div>FPS: @(runtime?.Progress?.Compression?.FramesPerSecond?.ToString("N1") ?? "—")</div>
                 <div>Bitrate: @Bitrate(runtime?.Progress?.Compression?.BitrateBitsPerSecond)</div>
@@ -174,13 +214,20 @@
     private PresetId globalPreset = new("balanced"); private int crf = 24; private EncoderPreset speed = EncoderPreset.Medium;
     private MaximumResolution resolution = MaximumResolution.Keep; private AudioMode audio = AudioMode.Auto; private string suffix = "_V";
     private bool showSummary, forceCapacity; private string? errorCode, error;
+    private bool refreshing, runningAction; private DateTimeOffset? lastUpdated;
+    private readonly CancellationTokenSource refreshCancellation = new(); private Task? refreshLoop;
     private readonly Dictionary<JobId, JobRuntimeView> runtimes = []; private BatchProgressView? batchProgress;
     private readonly HashSet<JobId> publicationSelection = []; private readonly HashSet<JobId> publicationForce = [];
+    private readonly HashSet<JobId> publishingJobs = []; private bool publishing; private int publishedCount, publishingTotal;
+    private string? publicationSummary, publicationSummaryClass;
     private readonly Dictionary<JobId, PublicationResult> publicationResults = [];
-    private IReadOnlyList<ImmichConnectionView> publishConnections = []; private string publicationDestination = "";
+    private IReadOnlyList<ImmichConnectionView> allConnections = []; private IReadOnlyList<ImmichConnectionView> publishConnections = []; private string publicationDestination = "";
     private bool IsPersisted => batch is not null; private bool IsLocked => batch is not null && batch.Status != BatchStatus.Draft;
+    private bool IsProcessing => batchProgress?.Status is BatchStatus.Acquiring or BatchStatus.Processing;
+    private string BatchActivityText => batchProgress?.Status switch { BatchStatus.Acquiring => "Acquiring source videos", BatchStatus.Processing => "Processing videos", BatchStatus.Completed => "Processing complete", BatchStatus.Cancelled => "Batch cancelled", _ => "Preparing batch" };
+    private string LastUpdatedText => lastUpdated?.ToLocalTime().ToString("HH:mm:ss") ?? "waiting for the first update";
 
-    protected override async Task OnInitializedAsync() { ProgressHub.Changed += ProgressChanged; publishConnections = (await Connections.ListAsync()).Where(x => x.Enabled && x.Compatibility == CompatibilityResult.Compatible && x.Capabilities.CanPublish).ToArray(); var preferred = publishConnections.FirstOrDefault(x => x.IsDefault) ?? publishConnections.FirstOrDefault(); publicationDestination = preferred?.Id.Value.ToString("D") ?? ""; }
+    protected override async Task OnInitializedAsync() { ProgressHub.Changed += ProgressChanged; refreshLoop = RefreshLoopAsync(refreshCancellation.Token); allConnections = await Connections.ListAsync(); publishConnections = allConnections.Where(x => x.Enabled && x.Compatibility == CompatibilityResult.Compatible && x.Capabilities.CanPublish).ToArray(); var preferred = publishConnections.FirstOrDefault(x => x.IsDefault) ?? publishConnections.FirstOrDefault(); publicationDestination = preferred?.Id.Value.ToString("D") ?? ""; }
     protected override async Task OnAfterRenderAsync(bool firstRender) { if (!firstRender) return; module = await JS.InvokeAsync<IJSObjectReference>("import", "./browser-uploads.js"); self = DotNetObjectReference.Create(this); await module.InvokeVoidAsync("initialize", dropZone, self); await module.InvokeVoidAsync("restore"); }
     private Task OpenPickerAsync() => module!.InvokeVoidAsync("openPicker").AsTask();
     private void SetSource(SourceKind value) { sourceKind = value; batchName = $"{(value == SourceKind.Immich ? "Immich" : "Browser upload")} {DateTime.Now:yyyy-MM-dd HH:mm}"; }
@@ -194,8 +241,8 @@
     private string SelectedPreset(JobId id) => perVideo.TryGetValue(id, out var value) ? value.Value : "";
     private async Task SaveAndShowSummaryAsync() => await RunAsync(async () => { var options = new CompressionOptions(crf, speed, resolution, audio, suffix); batch = await Wizard.SaveSettingsAsync(batch!.Id, new(batchName, globalPreset, options, perVideo)); showSummary = true; });
     private async Task ConfirmAsync() => await RunAsync(async () => { batch = await Wizard.ConfirmAsync(batch!.Id, forceCapacity); showSummary = true; await RefreshRuntimeAsync(); });
-    private async Task RefreshRuntimeAsync() { if (batch is null) return; foreach (var job in batch.Jobs) { var value = await WorkerStore.GetRuntimeAsync(job.Id); if (value is not null) runtimes[job.Id] = value; var publication = await Publications.GetAsync(job.Id); if (publication is not null) publicationResults[job.Id] = publication; } batchProgress = await WorkerStore.GetBatchProgressAsync(batch.Id); }
-    private async Task RefreshResultsAsync() => await RunAsync(async () => { batch = await Wizard.GetAsync(batch!.Id); await RefreshRuntimeAsync(); });
+    private async Task RefreshRuntimeAsync() { if (batch is null) return; foreach (var job in batch.Jobs) { var value = await WorkerStore.GetRuntimeAsync(job.Id); if (value is not null) runtimes[job.Id] = value; var publication = await Publications.GetAsync(job.Id); if (publication is not null) publicationResults[job.Id] = publication; } batchProgress = await WorkerStore.GetBatchProgressAsync(batch.Id); lastUpdated = Time.GetUtcNow(); }
+    private async Task RefreshResultsAsync() => await RunAsync(async () => { refreshing = true; try { batch = await Wizard.GetAsync(batch!.Id); await RefreshRuntimeAsync(); } finally { refreshing = false; } });
     private async Task RecompressAsync(BatchJobView job) => await RunAsync(async () => { await Results.RecompressAsync(job.Id, new(job.PresetId, job.EffectiveOptions)); batch = await Wizard.GetAsync(batch!.Id); await RefreshRuntimeAsync(); });
     private async Task ForcePublicationAsync(JobId id) => await RunAsync(async () => { await Results.AuthorizeNotBeneficialPublicationAsync(id); batch = await Wizard.GetAsync(batch!.Id); });
     private void SetPublicationSelected(JobId id, bool selected) { if (selected) publicationSelection.Add(id); else publicationSelection.Remove(id); }
@@ -206,19 +253,86 @@
     {
         var destination = ResolvePublicationDestination() ?? throw new InvalidOperationException("Choose a publish-capable destination.");
         var selected = publicationSelection.Select(id => new PublicationSelection(id, publicationForce.Contains(id))).ToArray();
-        foreach (var result in await Publications.PublishAsync(batch!.Id, destination, selected)) publicationResults[result.JobId] = result;
-        publicationSelection.Clear(); batch = await Wizard.GetAsync(batch.Id); await RefreshRuntimeAsync();
+        publishing = true; publishedCount = 0; publishingTotal = selected.Length; publicationSummary = null;
+        publishingJobs.Clear(); foreach (var item in selected) publishingJobs.Add(item.JobId);
+        await InvokeAsync(StateHasChanged); await Task.Yield();
+        var progress = new Progress<PublicationResult>(result =>
+        {
+            publicationResults[result.JobId] = result; publishingJobs.Remove(result.JobId); publishedCount++;
+            _ = InvokeAsync(StateHasChanged);
+        });
+        try
+        {
+            var results = await Publications.PublishAsync(batch!.Id, destination, selected, progress);
+            foreach (var result in results) publicationResults[result.JobId] = result;
+            var succeeded = results.Count(x => x.State == PublicationState.Published);
+            var partial = results.Count(x => x.State == PublicationState.PartiallyPublished);
+            var failed = results.Count - succeeded - partial;
+            publicationSummary = $"Publication finished: {succeeded} succeeded, {partial} partially published, {failed} failed.";
+            publicationSummaryClass = failed == 0 && partial == 0 ? "alert-success" : succeeded > 0 || partial > 0 ? "alert-warning" : "alert-danger";
+            publicationSelection.Clear(); batch = await Wizard.GetAsync(batch.Id); await RefreshRuntimeAsync();
+        }
+        finally { publishing = false; publishingJobs.Clear(); }
     });
+    private PublicationState PublicationStateFor(BatchJobView job) => publicationResults.TryGetValue(job.Id, out var result) ? result.State : job.PublicationState;
+    private string? PublishedAssetIdFor(BatchJobView job) => publicationResults.TryGetValue(job.Id, out var result) ? result.AssetId : job.PublishedAssetId;
+    private string? ImmichAssetUrl(BatchJobView job)
+    {
+        var assetId = PublishedAssetIdFor(job); if (string.IsNullOrWhiteSpace(assetId)) return null;
+        var destination = publicationResults.TryGetValue(job.Id, out var result) ? result.DestinationConnectionId : batch?.ConnectionId;
+        var connection = destination is null ? null : allConnections.FirstOrDefault(x => x.Id == destination.Value);
+        if (connection is null || !Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var root)) return null;
+        return new Uri(root, $"photos/{Uri.EscapeDataString(assetId)}").AbsoluteUri;
+    }
+    private static string PublicationLabel(PublicationState state) => state switch { PublicationState.NotRequested => "Not published", PublicationState.Publishing => "Publishing", PublicationState.Published => "Published", PublicationState.PartiallyPublished => "Partially published", PublicationState.Failed => "Failed", _ => state.ToString() };
+    private static string PublicationBadge(PublicationState state) => state switch { PublicationState.Published => "text-bg-success", PublicationState.PartiallyPublished => "text-bg-warning", PublicationState.Failed => "text-bg-danger", PublicationState.Publishing => "text-bg-primary", _ => "text-bg-secondary" };
+    private static string PublicationError(string code) => code switch { "publication.upload.ambiguous" => "The upload result is uncertain. Retry safely checks Immich before uploading again.", "publication.album.sync_failed" => "The video was uploaded, but one or more albums could not be synchronized. Retry to finish synchronization.", "publication.force.required" => "Confirm publication of this result because it did not reduce the file size.", "publication.destination.changed" => "The destination differs from the original publication attempt.", "publication.connection.missing" => "The Immich connection no longer exists.", "publication.connection.unavailable" => "The Immich connection is unavailable or cannot publish.", "publication.http_error" => "Immich rejected the request.", _ => code };
     private async Task CancelJobAsync(JobId id) => await RunAsync(async () => { await WorkerStore.RequestJobCancellationAsync(id, Time.GetUtcNow()); await RefreshRuntimeAsync(); });
     private async Task RetryJobAsync(JobId id) => await RunAsync(async () => { await WorkerStore.RetryAsync(id, Time.GetUtcNow()); batch = await Wizard.GetAsync(batch!.Id); await RefreshRuntimeAsync(); });
     private async Task CancelBatchAsync() => await RunAsync(async () => { await WorkerStore.RequestBatchCancellationAsync(batch!.Id, Time.GetUtcNow()); batch = await Wizard.GetAsync(batch.Id); await RefreshRuntimeAsync(); });
-    private void ProgressChanged(JobId id, JobProgressSnapshot progress) { if (!runtimes.TryGetValue(id, out var current)) return; runtimes[id] = current with { Progress = progress }; _ = InvokeAsync(StateHasChanged); }
-    private static string ProgressText(JobProgressSnapshot? value) => value?.Compression?.Percentage is decimal percent ? $"{percent:N1}%" : value?.Transfer is { } transfer ? transfer.TotalBytes is long total && total > 0 ? $"{100m * transfer.BytesTransferred / total:N1}%" : $"{transfer.BytesTransferred:N0} bytes" : "—";
+    private void ProgressChanged(JobId id, JobProgressSnapshot progress) { if (!runtimes.TryGetValue(id, out var current)) return; runtimes[id] = current with { Progress = progress }; lastUpdated = progress.UpdatedAt; _ = InvokeAsync(StateHasChanged); }
+    private static decimal? ProgressPercentage(JobProgressSnapshot? value, JobState state) => state switch
+    {
+        JobState.Acquiring when value?.Transfer is { TotalBytes: > 0 } transfer => decimal.Min(100m, 100m * transfer.BytesTransferred / transfer.TotalBytes.Value),
+        JobState.Compressing => value?.Compression?.Percentage,
+        JobState.Ready or JobState.NotBeneficial => 100m,
+        _ => null
+    };
+    private static string ProgressText(JobProgressSnapshot? value, JobState state) => ProgressPercentage(value, state) is decimal percent ? $"{percent:N1}%" : state == JobState.Acquiring && value?.Transfer is { } transfer ? $"{transfer.BytesTransferred:N0} bytes transferred" : state switch { JobState.Probing => "Inspecting source metadata...", JobState.Queued => "Waiting for compression...", JobState.Validating => "Validating output...", JobState.Ready or JobState.NotBeneficial => "Complete", JobState.Failed => "Failed", JobState.Cancelled => "Cancelled", JobState.Interrupted => "Interrupted", _ => "Waiting..." };
+    private static bool IsActive(JobState state) => state is JobState.Acquiring or JobState.Probing or JobState.Queued or JobState.Compressing or JobState.Validating;
+    private static string StateText(JobState state) => state switch { JobState.Acquiring => "Acquiring", JobState.Probing => "Inspecting", JobState.Queued => "Queued", JobState.Compressing => "Compressing", JobState.Validating => "Validating", _ => state.ToString() };
+    private static string SavingsText(long? sourceBytes, long outputBytes)
+    {
+        if (sourceBytes is not > 0) return "Savings unavailable";
+        var savings = 100m * (sourceBytes.Value - outputBytes) / sourceBytes.Value;
+        return savings >= 0 ? $"{savings:N1}% saved" : $"{-savings:N1}% larger";
+    }
+    private static string SavingsClass(long? sourceBytes, long outputBytes) => sourceBytes is > 0 && outputBytes < sourceBytes ? "text-success" : sourceBytes is > 0 && outputBytes >= sourceBytes ? "text-warning" : "text-body-secondary";
     private static string Bitrate(long? value) => value.HasValue ? $"{value.Value / 1000d:N0} kb/s" : "—";
     private void LoadOptions(CompressionOptions value) => (crf, speed, resolution, audio, suffix) = (value.Crf, value.EncoderPreset, value.MaximumResolution, value.AudioMode, value.Suffix);
-    private async Task RunAsync(Func<Task> action) { error = errorCode = null; try { await action(); } catch (DomainException ex) { errorCode = ex.Code; error = ex.Message; } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (Exception ex) { errorCode = "batch.invalid"; error = ex.Message; } }
+    private async Task RunAsync(Func<Task> action) { error = errorCode = null; runningAction = true; try { await action(); } catch (DomainException ex) { errorCode = ex.Code; error = ex.Message; } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (Exception ex) { errorCode = "batch.invalid"; error = ex.Message; } finally { runningAction = false; } }
+    private async Task RefreshLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (batch is null || !IsLocked || (batchProgress is not null && !IsProcessing) || runningAction || refreshing) continue;
+                await InvokeAsync(async () =>
+                {
+                    refreshing = true;
+                    try { batch = await Wizard.GetAsync(batch.Id); await RefreshRuntimeAsync(); errorCode = error = null; }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+                    catch (Exception ex) { errorCode = "processing.refresh_failed"; error = $"Live updates paused: {ex.Message}"; }
+                    finally { refreshing = false; StateHasChanged(); }
+                });
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
     private static string ResolutionLabel(MaximumResolution value) => value == MaximumResolution.Keep ? "Keep" : $"{(int)value}p";
-    private static string Bytes(long? value) => value is null ? "Unknown" : value.Value < 1024 ? $"{value} B" : $"{value.Value / 1024d / 1024d:N1} MB";
+    private static string Bytes(long? value) => value switch { null => "Unknown", < 1024 => $"{value} B", < 1024L * 1024 * 1024 => $"{value.Value / 1024d / 1024d:N1} MB", _ => $"{value.Value / 1024d / 1024d / 1024d:N2} GB" };
 
     [JSInvokable] public void FilesSelected(UploadFileInfo[] selected) { foreach (var item in selected) if (files.All(x => x.ClientId != item.ClientId)) files.Add(new(item.ClientId, item.FileName, "Ready", 0)); StateHasChanged(); }
     [JSInvokable] public void UploadProgress(string id, int percentage) { var file = files.FirstOrDefault(x => x.ClientId == id); if (file is not null) { file.State = "Uploading"; file.Progress = percentage; file.IsUploading = true; StateHasChanged(); } }
@@ -226,7 +340,7 @@
     [JSInvokable] public async Task BatchReady(string id) { batch = await Wizard.GetAsync(BatchId.From(Guid.Parse(id))); if (batch is not null) { batchName = batch.Name; LoadOptions(batch.DefaultOptions); if (IsLocked) await RefreshRuntimeAsync(); } StateHasChanged(); }
     [JSInvokable] public void ServerState(ServerBatchState state) { batchName = state.Name; files.Clear(); files.AddRange(state.Files.Select(x => new UploadRow(x.JobId.ToString(), x.FileName, x.State, x.BytesReceived.HasValue ? 100 : 0) { ErrorCode = x.ErrorCode, ErrorMessage = x.ErrorMessage, IsServerKnown = true, HasLocalFile = false })); StateHasChanged(); }
     [JSInvokable] public void PageError(string code, string message) { errorCode = code; error = message; StateHasChanged(); }
-    public async ValueTask DisposeAsync() { ProgressHub.Changed -= ProgressChanged; if (module is not null) await module.DisposeAsync(); self?.Dispose(); }
+    public async ValueTask DisposeAsync() { ProgressHub.Changed -= ProgressChanged; refreshCancellation.Cancel(); if (refreshLoop is not null) { try { await refreshLoop; } catch (OperationCanceledException) { } } refreshCancellation.Dispose(); if (module is not null) await module.DisposeAsync(); self?.Dispose(); }
     public sealed record UploadFileInfo(string ClientId, string FileName, long Size); public sealed record ServerBatchState(Guid BatchId, string Name, ServerFileState[] Files); public sealed record ServerFileState(Guid JobId, string FileName, string State, long? BytesReceived, string? ErrorCode, string? ErrorMessage);
     private sealed class UploadRow(string clientId, string fileName, string state, int progress) { public string ClientId { get; } = clientId; public string FileName { get; } = fileName; public string State { get; set; } = state; public int Progress { get; set; } = progress; public string? ErrorCode { get; set; } public string? ErrorMessage { get; set; } public bool IsUploading { get; set; } public bool IsServerKnown { get; set; } public bool HasLocalFile { get; set; } = true; public bool CanRetry => ErrorCode is not null && !IsUploading && HasLocalFile; }
 }

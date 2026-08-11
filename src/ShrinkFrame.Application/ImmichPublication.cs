@@ -27,13 +27,15 @@ public sealed class ImmichPublicationTransportException(string code, string mess
 
 public sealed record PublicationSelection(JobId JobId, bool ForceNotBeneficial);
 public sealed record PublicationResult(JobId JobId, PublicationState State, string? AssetId,
-    IReadOnlyList<string> PendingAlbumIds, IReadOnlyList<string> Warnings, string? ErrorCode);
+    IReadOnlyList<string> PendingAlbumIds, IReadOnlyList<string> Warnings, string? ErrorCode,
+    ConnectionId? DestinationConnectionId = null);
 
 public interface IImmichPublicationService
 {
     Task<PublicationResult?> GetAsync(JobId jobId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PublicationResult>> PublishAsync(BatchId batchId, ConnectionId destination,
-        IReadOnlyCollection<PublicationSelection> selection, CancellationToken cancellationToken = default);
+        IReadOnlyCollection<PublicationSelection> selection, IProgress<PublicationResult>? progress = null,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ImmichPublicationService(IBatchRepository batches, ICompressionJobRepository jobs,
@@ -48,11 +50,13 @@ public sealed class ImmichPublicationService(IBatchRepository batches, ICompress
         var error = checkpoint?.UploadAmbiguous == true ? "publication.upload.ambiguous"
             : job.Value.PublicationState == PublicationState.PartiallyPublished ? "publication.album.sync_failed" : null;
         return new(jobId, job.Value.PublicationState, job.Value.PublishedAssetId,
-            checkpoint?.PendingAlbumIds ?? [], checkpoint?.Warnings ?? [], error);
+            checkpoint?.PendingAlbumIds ?? [], checkpoint?.Warnings ?? [], error,
+            checkpoint?.DestinationConnectionId);
     }
 
     public async Task<IReadOnlyList<PublicationResult>> PublishAsync(BatchId batchId, ConnectionId destination,
-        IReadOnlyCollection<PublicationSelection> selection, CancellationToken cancellationToken = default)
+        IReadOnlyCollection<PublicationSelection> selection, IProgress<PublicationResult>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var batch = await batches.GetAsync(batchId, cancellationToken) ?? throw new KeyNotFoundException("Batch was not found.");
         if (batch.SourceKind == SourceKind.Immich && batch.ConnectionId != destination)
@@ -67,7 +71,10 @@ public sealed class ImmichPublicationService(IBatchRepository batches, ICompress
         foreach (var item in selected)
         {
             if (!batchJobs.TryGetValue(item.JobId, out var stored)) throw new InvalidOperationException("A selected result does not belong to this batch.");
-            results.Add(await PublishOneAsync(stored, destination, item.ForceNotBeneficial, cancellationToken));
+            var result = (await PublishOneAsync(stored, destination, item.ForceNotBeneficial, cancellationToken))
+                with { DestinationConnectionId = destination };
+            results.Add(result);
+            progress?.Report(result);
         }
         return results;
     }

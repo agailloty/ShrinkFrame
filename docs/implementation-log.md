@@ -695,3 +695,24 @@ Verification performed:
 - `git diff --check` — completed with no whitespace errors.
 - With the repository's `global.json` temporarily pointed at the installed stable SDK 10.0.102, `dotnet build ShrinkFrame.sln --configuration Release --no-restore` completed with zero warnings and zero errors; the required 10.0.302 pin was then restored.
 - Under the same stable SDK verification, `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` passed 213 tests (167 Domain and 46 Infrastructure) with zero failures or skips.
+## 2026-08-11 — Live processing feedback
+
+Summary:
+
+- Added automatic one-second synchronization of durable batch/job state while processing, so acquisition completion, probing, queueing, compression, validation, failures, and final results appear without a page reload.
+- Kept the in-memory progress feed for smooth byte/FFmpeg updates while making periodic persisted state the source of truth.
+- Added explicit phase labels, active spinners, per-job progress bars, a last-update timestamp, and a manual refresh fallback. Stale acquisition percentages are no longer shown during probing or later phases.
+- Added the current encoded output size during compression and the final compressed size with percentage saved (or percentage larger for non-beneficial results). The worker now persists an authoritative final size and 100% completion snapshot after validation.
+- Added interactive grouped publication feedback: immediate per-video publishing indicators, incremental completion updates, disabled duplicate submission, success/partial/failure badges, readable error guidance, Immich asset IDs, and a final grouped summary. The publication service now reports each completed item without waiting for the entire group.
+- Added an `Open in Immich` link for published assets using the verified `/photos/{assetId}` web route. Publication results now carry their persisted destination connection ID so links remain correct for browser-upload batches after reconnect, without exposing API keys.
+- Serialized automatic refresh with user actions and cancel the refresh loop when the component is disposed.
+
+Decision deviations:
+
+- None.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — completed successfully.
+- `git diff --check` — completed with no whitespace errors.
