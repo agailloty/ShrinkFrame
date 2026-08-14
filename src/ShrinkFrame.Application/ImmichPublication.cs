@@ -66,11 +66,16 @@ public sealed class ImmichPublicationService(IBatchRepository batches, ICompress
             throw new InvalidOperationException("Choose an enabled, compatible, publish-capable Immich connection.");
         var selected = selection.GroupBy(x => x.JobId).Select(x => x.Last()).ToArray();
         if (selected.Length == 0) throw new InvalidOperationException("Select at least one result to publish.");
-        var batchJobs = (await jobs.ListByBatchAsync(batchId, cancellationToken)).ToDictionary(x => x.Value.Id);
+        var batchJobIds = (await jobs.ListByBatchAsync(batchId, cancellationToken))
+            .Select(x => x.Value.Id).ToHashSet();
         var results = new List<PublicationResult>(selected.Length);
         foreach (var item in selected)
         {
-            if (!batchJobs.TryGetValue(item.JobId, out var stored)) throw new InvalidOperationException("A selected result does not belong to this batch.");
+            if (!batchJobIds.Contains(item.JobId)) throw new InvalidOperationException("A selected result does not belong to this batch.");
+            // A grouped publication can take long enough for another operation to update a later job.
+            // Reload immediately before processing each item so its optimistic-concurrency version is current.
+            var stored = await jobs.GetAsync(item.JobId, cancellationToken)
+                ?? throw new KeyNotFoundException("Compression job was not found.");
             var result = (await PublishOneAsync(stored, destination, item.ForceNotBeneficial, cancellationToken))
                 with { DestinationConnectionId = destination };
             results.Add(result);

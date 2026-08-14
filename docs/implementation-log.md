@@ -747,3 +747,11 @@ Verification performed:
 
 - `docker compose --env-file .env.example config --quiet` — completed successfully.
 - `git diff --check` — completed with no whitespace errors.
+# 2026-08-14 — Refresh grouped publication jobs before each upload
+
+- Fixed intermittent optimistic-concurrency failures during grouped Immich publication. The service previously
+  loaded every selected job before uploading the first video, so a later job could carry a stale SQLite version
+  by the time its publication began.
+- Membership is still validated against the requested batch up front, but each job is now reloaded immediately
+  before its own publication. This preserves the existing concurrency guard while avoiding false “job changed”
+  failures caused by a long-running earlier upload.
