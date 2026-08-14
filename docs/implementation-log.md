@@ -755,3 +755,45 @@ Verification performed:
 - Membership is still validated against the requested batch up front, but each job is now reloaded immediately
   before its own publication. This preserves the existing concurrency guard while avoiding false “job changed”
   failures caused by a long-running earlier upload.
+
+## 2026-08-14 — Responsive batch wizard and visible errors
+
+Summary:
+
+- Replaced the single continuously stacked New Batch page with a six-step Source, Videos, Compression, Review,
+  Processing, and Results flow while retaining the existing durable batch and option snapshots.
+- Added an accessible progress stepper, guarded back/forward navigation, compact step guidance, and sticky action
+  controls that remain reachable on small screens.
+- Added a sticky assertive error banner and propagated Immich browser failures to it, so errors remain visible
+  without returning to the top of a long selection page.
+- Collapsed advanced compression controls behind an explicit disclosure, kept the selected Immich count visible,
+  and ordered failed/interrupted processing jobs ahead of active and successful jobs.
+- Converted upload, preset, review, processing, and publication tables into labelled cards below the Bootstrap
+  medium breakpoint while retaining their desktop table layouts.
+
+Decision deviations:
+
+- None. This brings the implementation in line with the already accepted linear-wizard decision.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 213 tests (167 Domain and 46 Infrastructure) with zero failures or skips.
+
+## 2026-08-14 — Recover batch wizard optimistic-concurrency conflicts
+
+Summary:
+
+- Cleared stale EF Core tracking state whenever a compression-job optimistic-concurrency check fails.
+- Changed wizard settings and confirmation updates to reload each job immediately before mutation and retry a
+  bounded three times when an upload/probe request changes the same job concurrently.
+- Added regression coverage proving that a scoped repository can recover after rejecting a stale version.
+
+Decision deviations:
+
+- None. SQLite remains the source of truth and optimistic concurrency remains enforced.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 213 tests (167 Domain and 46 Infrastructure) with zero failures or skips.
