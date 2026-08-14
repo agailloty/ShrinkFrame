@@ -137,7 +137,10 @@ public sealed class CompressionJobRepository(ShrinkFrameDbContext db) : ICompres
         var entity = await JobQuery().SingleOrDefaultAsync(x => x.Id == job.Id.Value, cancellationToken)
             ?? throw new KeyNotFoundException("Compression job was not found.");
         if (entity.Version != expectedVersion)
+        {
+            db.ChangeTracker.Clear();
             throw new PersistenceConcurrencyException("Compression job changed after it was loaded.");
+        }
 
         var replacement = PersistenceMapper.ToEntity(job, checked(expectedVersion + 1));
         PersistenceMapper.Copy(replacement, entity);
@@ -152,6 +155,7 @@ public sealed class CompressionJobRepository(ShrinkFrameDbContext db) : ICompres
         }
         catch (DbUpdateConcurrencyException exception)
         {
+            db.ChangeTracker.Clear();
             throw new PersistenceConcurrencyException("Compression job changed while it was being saved.", exception);
         }
     }

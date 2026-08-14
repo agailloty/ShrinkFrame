@@ -102,3 +102,45 @@ h1:focus {
     border-color: var(--bs-primary);
     background: var(--bs-primary-bg-subtle);
 }
+
+.wizard-heading { margin-bottom:1rem; }
+.wizard-progress { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:.5rem; margin-bottom:1.25rem; }
+.wizard-progress__step { display:flex; align-items:center; gap:.55rem; min-width:0; padding:.7rem; color:var(--sf-muted); background:#fff; border:1px solid var(--sf-line); border-radius:.8rem; font-size:.78rem; font-weight:750; text-align:left; }
+.wizard-progress__step:disabled { opacity:.65; }
+.wizard-progress__step.is-current { color:var(--sf-accent-dark); border-color:#46aaa9; box-shadow:0 0 0 .2rem rgba(32,169,168,.1); }
+.wizard-progress__step.is-complete { color:#236b55; background:#effaf6; border-color:#bce5d5; }
+.wizard-progress__number { display:grid; flex:0 0 1.6rem; width:1.6rem; height:1.6rem; place-items:center; border-radius:50%; color:#fff; background:#8896a7; }
+.is-current .wizard-progress__number { background:var(--sf-accent); }
+.is-complete .wizard-progress__number { background:#278160; }
+.wizard-error { position:sticky; z-index:1030; top:.5rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; box-shadow:0 12px 30px rgba(96,20,26,.25); }
+.wizard-actions { position:sticky; z-index:1020; bottom:.75rem; display:flex; justify-content:space-between; gap:.75rem; margin-top:1.5rem; padding:.75rem; border:1px solid var(--sf-line); border-radius:1rem; background:rgba(255,255,255,.94); box-shadow:0 12px 35px rgba(28,47,72,.16); backdrop-filter:blur(10px); }
+.selection-dock { position:sticky; z-index:1010; bottom:5.5rem; display:flex; justify-content:space-between; gap:1rem; margin-top:1rem; padding:.7rem 1rem; border:1px solid #bce5d5; border-radius:.8rem; background:#effaf6; color:#236b55; }
+.advanced-settings { padding:1rem; border:1px solid var(--sf-line); border-radius:.85rem; background:#f8fafc; }
+.advanced-settings > summary { cursor:pointer; color:#3c4d61; font-weight:750; }
+
+@media (max-width: 767.98px) {
+    .wizard-progress { display:flex; overflow-x:auto; padding:.2rem 0 .5rem; scroll-snap-type:x proximity; }
+    .wizard-progress__step { flex:0 0 auto; min-width:7.5rem; scroll-snap-align:start; }
+    .wizard-progress__step span:last-child { white-space:nowrap; }
+    .wizard-actions { bottom:.5rem; }
+    .wizard-actions .btn { flex:1 1 0; min-height:44px; }
+    .selection-dock { bottom:5.25rem; flex-direction:column; gap:.1rem; }
+    .wizard-card-table thead { display:none; }
+    .wizard-card-table, .wizard-card-table tbody, .wizard-card-table tr, .wizard-card-table td { display:block; width:100%; }
+    .wizard-card-table tr { margin:.75rem; width:calc(100% - 1.5rem); overflow:hidden; border:1px solid var(--sf-line); border-radius:.8rem; background:#fff; }
+    .wizard-card-table > tbody > tr > td { display:grid; grid-template-columns:minmax(6.5rem,35%) 1fr; gap:.75rem; padding:.7rem .85rem; text-align:left!important; }
+    .wizard-card-table td::before { color:#65758a; font-size:.7rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .upload-table td:nth-child(1)::before,.preset-table td:nth-child(1)::before,.processing-table td:nth-child(1)::before,.summary-table td:nth-child(1)::before { content:"Video"; }
+    .upload-table td:nth-child(2)::before,.processing-table td:nth-child(2)::before { content:"Status"; }
+    .upload-table td:nth-child(3)::before,.processing-table td:nth-child(3)::before { content:"Progress"; }
+    .upload-table td:nth-child(4)::before,.processing-table td:nth-child(6)::before { content:"Actions"; }
+    .preset-table td:nth-child(2)::before { content:"Preset"; }
+    .processing-table td:nth-child(4)::before { content:"Size / savings"; }
+    .processing-table td:nth-child(5)::before { content:"Details"; }
+    .publication-table td:nth-child(1)::before { content:"Select"; }
+    .publication-table td:nth-child(2)::before { content:"Result"; }
+    .publication-table td:nth-child(3)::before { content:"Publication"; }
+    .publication-table td:nth-child(4)::before { content:"Status"; }
+    .summary-table td:nth-child(2)::before { content:"Source size"; }
+    .summary-table td:nth-child(3)::before { content:"Settings"; }
+}

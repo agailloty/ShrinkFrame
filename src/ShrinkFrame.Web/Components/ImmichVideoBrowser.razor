@@ -74,6 +74,7 @@
 @code {
     [Parameter] public EventCallback<ConnectionId?> ConnectionChanged { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<BatchSelection>> SelectionChanged { get; set; }
+    [Parameter] public EventCallback<BrowserError?> ErrorChanged { get; set; }
     private IReadOnlyList<ImmichConnectionView> connections = [];
     private IReadOnlyList<ImmichAlbum> albums = [];
     private ImmichConnectionView? selectedConnection;
@@ -126,6 +127,15 @@
         : $"{value / 1024d / 1024d / 1024d:N1} GB";
     private static int TotalPages(ImmichVideoPage value) => Math.Max(1, (int)Math.Ceiling(value.Total / (double)value.PageSize));
     private static DateTimeOffset? ToOffset(DateTime? value, bool endOfDay = false) => value is null ? null : new DateTimeOffset(endOfDay ? value.Value.Date.AddDays(1).AddTicks(-1) : value.Value.Date);
-    private async Task RunAsync(Func<Task> action) { ClearError(); try { await action(); } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (KeyNotFoundException) { errorCode = "connection.deleted"; error = "The connection was deleted. Choose another connection."; } }
+    private async Task RunAsync(Func<Task> action)
+    {
+        await ClearErrorAsync();
+        try { await action(); }
+        catch (ImmichConnectionException ex) { await SetErrorAsync(ex.Code, ex.Message); }
+        catch (KeyNotFoundException) { await SetErrorAsync("connection.deleted", "The connection was deleted. Choose another connection."); }
+    }
+    private async Task SetErrorAsync(string code, string message) { errorCode = code; error = message; await ErrorChanged.InvokeAsync(new(code, message)); }
+    private async Task ClearErrorAsync() { errorCode = null; error = null; await ErrorChanged.InvokeAsync(null); }
     private void ClearError() { errorCode = null; error = null; }
+    public sealed record BrowserError(string Code, string Message);
 }

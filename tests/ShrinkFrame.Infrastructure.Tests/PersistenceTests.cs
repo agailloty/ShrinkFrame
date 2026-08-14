@@ -132,6 +132,9 @@ public sealed class PersistenceTests
         job.TransitionTo(JobState.Cancelled, DateTimeOffset.UtcNow);
         _ = await repository.UpdateAsync(job, version);
         await Assert.ThrowsExactlyAsync<PersistenceConcurrencyException>(() => repository.UpdateAsync(job, version));
+        var fresh = (await repository.GetAsync(jobId))!;
+        var recoveredVersion = await repository.UpdateAsync(fresh.Value, fresh.Version);
+        Assert.AreEqual(fresh.Version + 1, recoveredVersion);
     }
 
     [TestMethod]

@@ -67,13 +67,12 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         _ = BuiltInPresets.Get(settings.GlobalPresetId);
         batch.Rename(settings.Name, time.GetUtcNow());
         batch.Configure(settings.BatchOptions, time.GetUtcNow());
-        foreach (var stored in await jobs.ListByBatchAsync(id, token))
+        foreach (var jobId in (await jobs.ListByBatchAsync(id, token)).Select(x => x.Value.Id))
         {
-            var presetId = settings.PerVideoPresets.GetValueOrDefault(stored.Value.Id, settings.GlobalPresetId);
+            var presetId = settings.PerVideoPresets.GetValueOrDefault(jobId, settings.GlobalPresetId);
             var selected = BuiltInPresets.Get(presetId);
             var effective = presetId == settings.GlobalPresetId ? settings.BatchOptions : BuiltInPresets.Snapshot(selected.Id);
-            stored.Value.SelectOptions(selected.Id, effective, time.GetUtcNow());
-            await jobs.UpdateAsync(stored.Value, stored.Version, token);
+            await UpdateJobWithRetryAsync(jobId, job => job.SelectOptions(selected.Id, effective, time.GetUtcNow()), token);
         }
         await batches.UpdateAsync(batch, token);
         return await ViewAsync(batch, token);
@@ -86,16 +85,18 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         var admission = capacity.Evaluate(SourceBytes(storedJobs), forceLowCapacity);
         if (!admission.IsAdmitted) throw new InvalidOperationException("Insufficient capacity. Explicitly authorize the low-capacity override to continue.");
         if (forceLowCapacity && admission.HasWarning) batch.AuthorizeCapacityAdmissionOverride(time.GetUtcNow());
-        foreach (var stored in storedJobs)
+        foreach (var jobId in storedJobs.Select(x => x.Value.Id))
         {
-            if (batch.SourceKind == SourceKind.BrowserUpload)
+            await UpdateJobWithRetryAsync(jobId, job =>
             {
-                if (stored.Value.State != JobState.Probing || stored.Value.OriginalMetadata is null)
+                if (batch.SourceKind == SourceKind.BrowserUpload)
+                {
+                    if (job.State != JobState.Probing || job.OriginalMetadata is null)
                     throw new InvalidOperationException("All browser videos must finish probing before confirmation.");
-                stored.Value.TransitionTo(JobState.Queued, time.GetUtcNow());
-            }
-            else stored.Value.TransitionTo(JobState.Acquiring, time.GetUtcNow());
-            await jobs.UpdateAsync(stored.Value, stored.Version, token);
+                    job.TransitionTo(JobState.Queued, time.GetUtcNow());
+                }
+                else job.TransitionTo(JobState.Acquiring, time.GetUtcNow());
+            }, token);
         }
         batch.Confirm(time.GetUtcNow()); await batches.UpdateAsync(batch, token);
         return await ViewAsync(batch, token);
@@ -106,6 +107,24 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         var batch = await batches.GetAsync(id, token) ?? throw new KeyNotFoundException("Batch was not found.");
         if (batch.Status != BatchStatus.Draft) throw new InvalidOperationException("A confirmed batch cannot be edited.");
         return batch;
+    }
+    private async Task UpdateJobWithRetryAsync(JobId id, Action<CompressionJob> update, CancellationToken token)
+    {
+        const int maximumAttempts = 3;
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            var stored = await jobs.GetAsync(id, token) ?? throw new KeyNotFoundException("Compression job was not found.");
+            update(stored.Value);
+            try
+            {
+                await jobs.UpdateAsync(stored.Value, stored.Version, token);
+                return;
+            }
+            catch (PersistenceConcurrencyException) when (attempt < maximumAttempts)
+            {
+                // A browser upload/probe may finish in another request while this scoped wizard is open.
+            }
+        }
     }
     private async Task<BatchWizardView> ViewAsync(CompressionBatch batch, CancellationToken token)
     {
