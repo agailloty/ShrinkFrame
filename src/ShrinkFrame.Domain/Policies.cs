@@ -66,8 +66,10 @@ public static class OutputValidationPolicy
         var formats = output.Container.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (!formats.Contains("mp4", StringComparer.OrdinalIgnoreCase))
             findings.Add(new("validation.container", FindingSeverity.Blocking, "Output container is not MP4."));
-        if (!output.VideoCodec.Equals("h264", StringComparison.OrdinalIgnoreCase))
-            findings.Add(new("validation.codec", FindingSeverity.Blocking, "Output video codec is not H.264."));
+        var expectedCodec = options.VideoCodec == VideoCodec.H265 ? "hevc" : "h264";
+        if (!output.VideoCodec.Equals(expectedCodec, StringComparison.OrdinalIgnoreCase))
+            findings.Add(new("validation.codec", FindingSeverity.Blocking,
+                $"Output video codec is not {options.VideoCodec switch { VideoCodec.H265 => "H.265/HEVC", _ => "H.264" }}."));
         if (!MediaPolicies.IsDurationWithinTolerance(input.Duration, output.Duration))
             findings.Add(new("validation.duration", FindingSeverity.Blocking, "Output duration is outside tolerance."));
 

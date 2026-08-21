@@ -6,20 +6,23 @@ namespace ShrinkFrame.Domain;
 public sealed record CompressionOptions
 {
     private static readonly Regex SuffixPattern = new("^_[A-Za-z0-9][A-Za-z0-9_-]{0,31}$", RegexOptions.CultureInvariant);
-    public CompressionOptions(int crf, EncoderPreset encoderPreset, MaximumResolution maximumResolution, AudioMode audioMode, string suffix)
+    public CompressionOptions(int crf, EncoderPreset encoderPreset, MaximumResolution maximumResolution, AudioMode audioMode, string suffix,
+        VideoCodec videoCodec = VideoCodec.H264)
     {
         if (crf is < 18 or > 36) throw new DomainException(DomainErrors.InvalidCrf, "CRF must be between 18 and 36.");
         if (!Enum.IsDefined(encoderPreset)) throw new DomainException(DomainErrors.InvalidText, "Encoder preset is invalid.");
         if (!Enum.IsDefined(maximumResolution)) throw new DomainException(DomainErrors.InvalidResolution, "Maximum resolution is invalid.");
         if (!Enum.IsDefined(audioMode)) throw new DomainException(DomainErrors.InvalidAudio, "Audio mode is invalid.");
+        if (!Enum.IsDefined(videoCodec)) throw new DomainException(DomainErrors.InvalidText, "Video codec is invalid.");
         if (suffix is null || !SuffixPattern.IsMatch(suffix)) throw new DomainException(DomainErrors.InvalidSuffix, "Suffix must begin with underscore and contain 2-33 safe characters.");
-        Crf = crf; EncoderPreset = encoderPreset; MaximumResolution = maximumResolution; AudioMode = audioMode; Suffix = suffix;
+        Crf = crf; EncoderPreset = encoderPreset; MaximumResolution = maximumResolution; AudioMode = audioMode; Suffix = suffix; VideoCodec = videoCodec;
     }
     public int Crf { get; }
     public EncoderPreset EncoderPreset { get; }
     public MaximumResolution MaximumResolution { get; }
     public AudioMode AudioMode { get; }
     public string Suffix { get; }
+    public VideoCodec VideoCodec { get; }
     public bool HasQualityWarning => Crf > 30;
 }
 
@@ -43,7 +46,7 @@ public static class BuiltInPresets
     public static CompressionOptions Snapshot(PresetId id)
     {
         var o = Get(id).Options;
-        return new(o.Crf, o.EncoderPreset, o.MaximumResolution, o.AudioMode, o.Suffix);
+        return new(o.Crf, o.EncoderPreset, o.MaximumResolution, o.AudioMode, o.Suffix, o.VideoCodec);
     }
     private static BuiltInPreset Make(string id, string name, int crf, EncoderPreset preset, MaximumResolution resolution)
         => new(new(id), name, new(crf, preset, resolution, AudioMode.Auto, "_V"));

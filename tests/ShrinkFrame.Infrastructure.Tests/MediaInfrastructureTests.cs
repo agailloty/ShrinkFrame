@@ -67,6 +67,22 @@ public sealed class MediaInfrastructureTests
     }
 
     [TestMethod]
+    public void Argument_builder_selects_libx265_and_hvc1_for_h265()
+    {
+        var request = Request(Path.GetFullPath("input.mp4"), Path.GetFullPath("result.partial.mp4"),
+            1920, 1080, 0, MaximumResolution.Keep, "aac") with
+        {
+            Options = new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, "_V", VideoCodec.H265),
+        };
+
+        var args = Builder().Build(request);
+
+        AssertSequence(args, "-c:v", "libx265");
+        AssertSequence(args, "-tag:v", "hvc1");
+        CollectionAssert.DoesNotContain(args.ToArray(), "libx264");
+    }
+
+    [TestMethod]
     public void Argument_builder_rejects_hdr_without_a_color_management_policy()
     {
         var request = Request(Path.GetFullPath("hdr.mp4"), Path.GetFullPath("hdr.partial.mp4"),

@@ -29,7 +29,7 @@ internal static class PersistenceMapper
         Id = batch.Id.Value, Name = batch.Name, SourceKind = batch.SourceKind.ToString(),
         ConnectionId = batch.ConnectionId?.Value, Status = batch.Status.ToString(),
         CapacityAdmissionOverride = batch.CapacityAdmissionOverride,
-        DefaultCrf = batch.DefaultOptions.Crf, DefaultEncoderPreset = batch.DefaultOptions.EncoderPreset.ToString(),
+        DefaultCrf = batch.DefaultOptions.Crf, DefaultVideoCodec = batch.DefaultOptions.VideoCodec.ToString(), DefaultEncoderPreset = batch.DefaultOptions.EncoderPreset.ToString(),
         DefaultMaximumResolution = batch.DefaultOptions.MaximumResolution.ToString(),
         DefaultAudioMode = batch.DefaultOptions.AudioMode.ToString(), DefaultSuffix = batch.DefaultOptions.Suffix,
         CreatedAt = batch.CreatedAt, UpdatedAt = batch.UpdatedAt,
@@ -38,7 +38,7 @@ internal static class PersistenceMapper
     internal static CompressionBatch ToDomain(BatchEntity entity) => CompressionBatch.Restore(
         BatchId.From(entity.Id), entity.Name, Parse<SourceKind>(entity.SourceKind),
         entity.ConnectionId.HasValue ? ConnectionId.From(entity.ConnectionId.Value) : null,
-        Options(entity.DefaultCrf, entity.DefaultEncoderPreset, entity.DefaultMaximumResolution, entity.DefaultAudioMode, entity.DefaultSuffix),
+        Options(entity.DefaultCrf, entity.DefaultEncoderPreset, entity.DefaultMaximumResolution, entity.DefaultAudioMode, entity.DefaultSuffix, entity.DefaultVideoCodec),
         Parse<BatchStatus>(entity.Status), entity.CreatedAt, entity.UpdatedAt, entity.Jobs.Select(x => JobId.From(x.Id)),
         entity.CapacityAdmissionOverride);
 
@@ -49,7 +49,7 @@ internal static class PersistenceMapper
         {
             Id = job.Id.Value, BatchId = job.BatchId.Value, SourceKind = job.Source.Kind.ToString(), SourceId = job.Source.SourceId,
             SourceConnectionId = job.Source.ConnectionId?.Value, PresetId = job.PresetId.Value,
-            Crf = job.EffectiveOptions.Crf, EncoderPreset = job.EffectiveOptions.EncoderPreset.ToString(),
+            Crf = job.EffectiveOptions.Crf, VideoCodec = job.EffectiveOptions.VideoCodec.ToString(), EncoderPreset = job.EffectiveOptions.EncoderPreset.ToString(),
             MaximumResolution = job.EffectiveOptions.MaximumResolution.ToString(), AudioMode = job.EffectiveOptions.AudioMode.ToString(),
             Suffix = job.EffectiveOptions.Suffix, State = job.State.ToString(), PublicationState = job.PublicationState.ToString(),
             NotBeneficialPublicationOverride = job.NotBeneficialPublicationOverride, PublishedAssetId = job.PublishedAssetId,
@@ -92,7 +92,7 @@ internal static class PersistenceMapper
                 entity.MetadataFileModifiedTime);
         }
         return CompressionJob.Restore(JobId.From(entity.Id), BatchId.From(entity.BatchId), source, new PresetId(entity.PresetId),
-            Options(entity.Crf, entity.EncoderPreset, entity.MaximumResolution, entity.AudioMode, entity.Suffix),
+            Options(entity.Crf, entity.EncoderPreset, entity.MaximumResolution, entity.AudioMode, entity.Suffix, entity.VideoCodec),
             Parse<JobState>(entity.State), Parse<PublicationState>(entity.PublicationState), entity.NotBeneficialPublicationOverride,
             entity.PublishedAssetId, metadata, Artifact(entity.SourceArtifactKey), Artifact(entity.OutputArtifactKey),
             entity.CreatedAt, entity.UpdatedAt, entity.Findings.Select(x => new ValidationFinding(x.Code, Parse<FindingSeverity>(x.Severity), x.Message)));
@@ -101,7 +101,7 @@ internal static class PersistenceMapper
     internal static void Copy(JobEntity source, JobEntity target)
     {
         target.SourceKind = source.SourceKind; target.SourceId = source.SourceId; target.SourceConnectionId = source.SourceConnectionId;
-        target.PresetId = source.PresetId; target.Crf = source.Crf; target.EncoderPreset = source.EncoderPreset;
+        target.PresetId = source.PresetId; target.Crf = source.Crf; target.VideoCodec = source.VideoCodec; target.EncoderPreset = source.EncoderPreset;
         target.MaximumResolution = source.MaximumResolution; target.AudioMode = source.AudioMode; target.Suffix = source.Suffix;
         target.State = source.State; target.PublicationState = source.PublicationState;
         target.NotBeneficialPublicationOverride = source.NotBeneficialPublicationOverride; target.PublishedAssetId = source.PublishedAssetId;
@@ -114,8 +114,8 @@ internal static class PersistenceMapper
         target.MetadataLatitude = source.MetadataLatitude; target.MetadataLongitude = source.MetadataLongitude; target.UpdatedAt = source.UpdatedAt;
     }
 
-    private static CompressionOptions Options(int crf, string encoder, string resolution, string audio, string suffix)
-        => new(crf, Parse<EncoderPreset>(encoder), Parse<MaximumResolution>(resolution), Parse<AudioMode>(audio), suffix);
+    private static CompressionOptions Options(int crf, string encoder, string resolution, string audio, string suffix, string videoCodec)
+        => new(crf, Parse<EncoderPreset>(encoder), Parse<MaximumResolution>(resolution), Parse<AudioMode>(audio), suffix, Parse<VideoCodec>(videoCodec));
     private static ArtifactRef? Artifact(string? key) => key is null ? null : new ArtifactRef(key);
     private static T Parse<T>(string value) where T : struct, Enum => Enum.TryParse<T>(value, false, out var result) && Enum.IsDefined(result)
         ? result : throw new InvalidOperationException($"Persisted {typeof(T).Name} value is invalid.");

@@ -23,7 +23,7 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 8. Expose advanced batch parameters: CRF, encoder speed, maximum resolution, keep-resolution option, audio mode, and filename suffix.
 9. Acquire all selected Immich videos before starting compression.
 10. Run one compression at a time by default and expose structured progress.
-11. Validate output duration, codec, dimensions, capture date, rotation, and file size.
+11. Encode to a user-selected H.264 or H.265/HEVC MP4 and validate output duration, codec, dimensions, capture date, rotation, and file size.
 12. Mark a valid output that is not smaller as `NotBeneficial`.
 13. Download results using HTTP range-capable endpoints.
 14. Publish selected valid outputs to Immich; a `NotBeneficial` output requires explicit force confirmation.
@@ -38,7 +38,7 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 - No transfer from one Immich instance to another.
 - No resumable browser or Immich downloads.
 - No GPU/hardware encoding.
-- No HEVC or AV1 output.
+- No AV1 output.
 - No arbitrary user-supplied FFmpeg arguments.
 - No custom saved presets.
 - No horizontal multi-node execution.
@@ -48,4 +48,4 @@ ShrinkFrame is a self-hosted web application that makes large personal videos sm
 
 ## Version 1.0 success criteria
 
-On the target Linux Docker host, a user can select multiple videos from one Immich instance or upload them from a browser, compress each to validated H.264 MP4, observe progress across restarts, download results, and publish selected results to the correct Immich instance without exposing credentials or modifying original assets.
+On the target Linux Docker host, a user can select multiple videos from one Immich instance or upload them from a browser, compress each to a validated H.264 or H.265/HEVC MP4, observe progress across restarts, download results, and publish selected results to the correct Immich instance without exposing credentials or modifying original assets.

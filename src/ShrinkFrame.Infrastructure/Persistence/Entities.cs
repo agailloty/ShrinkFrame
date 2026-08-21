@@ -27,6 +27,7 @@ internal sealed class BatchEntity
     public required string Status { get; set; }
     public bool CapacityAdmissionOverride { get; set; }
     public int DefaultCrf { get; set; }
+    public required string DefaultVideoCodec { get; set; }
     public required string DefaultEncoderPreset { get; set; }
     public required string DefaultMaximumResolution { get; set; }
     public required string DefaultAudioMode { get; set; }
@@ -46,6 +47,7 @@ internal sealed class JobEntity
     public Guid? SourceConnectionId { get; set; }
     public required string PresetId { get; set; }
     public int Crf { get; set; }
+    public required string VideoCodec { get; set; }
     public required string EncoderPreset { get; set; }
     public required string MaximumResolution { get; set; }
     public required string AudioMode { get; set; }

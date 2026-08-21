@@ -29,6 +29,18 @@ public sealed class OptionsAndPolicyTests
     }
 
     [TestMethod]
+    public void OutputValidationRequiresTheSelectedVideoCodec()
+    {
+        var input = new VideoValidationSnapshot("mp4", TimeSpan.FromSeconds(10), 640, 360, "h264", null, 0);
+        var hevc = new VideoValidationSnapshot("mp4", TimeSpan.FromSeconds(10), 640, 360, "hevc", null, 0);
+        var options = new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, "_V", VideoCodec.H265);
+
+        Assert.IsFalse(OutputValidationPolicy.Validate(input, hevc, options).Any(x => x.IsBlocking));
+        Assert.IsTrue(OutputValidationPolicy.Validate(input, hevc with { VideoCodec = "h264" }, options)
+            .Any(x => x.Code == "validation.codec"));
+    }
+
+    [TestMethod]
     public void OtherMetadataLossWarnsWithoutBlocking()
     {
         var input = new VideoValidationSnapshot("mp4", TimeSpan.FromSeconds(3), 640, 360, "h264", null, 0, 1, 2, true);
@@ -60,6 +72,7 @@ public sealed class OptionsAndPolicyTests
     {
         AssertCode(DomainErrors.InvalidResolution, () => new CompressionOptions(24, EncoderPreset.Medium, (MaximumResolution)42, AudioMode.Auto, "_V"));
         AssertCode(DomainErrors.InvalidAudio, () => new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, (AudioMode)42, "_V"));
+        AssertCode(DomainErrors.InvalidText, () => new CompressionOptions(24, EncoderPreset.Medium, MaximumResolution.Keep, AudioMode.Auto, "_V", (VideoCodec)42));
     }
 
     [TestMethod]

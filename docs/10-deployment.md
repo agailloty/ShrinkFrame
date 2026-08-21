@@ -32,7 +32,7 @@ Audit date: 2026-08-10.
 - record and pin each multi-architecture manifest digest in the Dockerfile at Prompt 15, after Docker Engine is available to resolve the registry manifests;
 - update SDK/runtime servicing versions together through a reviewed dependency update, rerun the full build/media smoke tests, and never select a preview tag.
 
-The Noble archive provides `ffmpeg` and `ffprobe` together in package `ffmpeg` version `7:6.1.1-3ubuntu5`, including libx264 support through its packaged dependencies. Prompt 15 must install that exact Debian package version (`apt-get install ffmpeg=7:6.1.1-3ubuntu5`), verify `ffmpeg -version`, `ffprobe -version`, and the presence of encoder `libx264`, then clean apt lists. If that exact version is no longer resolvable, do not silently float: update this policy and the implementation log to a reviewed Noble security/update version and repeat media compatibility tests.
+The Noble archive provides `ffmpeg` and `ffprobe` together in package `ffmpeg` version `7:6.1.1-3ubuntu5`, including `libx264` and `libx265` support through its packaged dependencies. Prompt 15 must install that exact Debian package version (`apt-get install ffmpeg=7:6.1.1-3ubuntu5`), verify `ffmpeg -version`, `ffprobe -version`, and both encoders, then clean apt lists. If that exact version is no longer resolvable, do not silently float: update this policy and the implementation log to a reviewed Noble security/update version and repeat media compatibility tests.
 
 The official non-chiseled Noble runtime is required because FFmpeg is installed with apt. The finished
 application runs as the image's non-root `app` user (UID/GID 1654). The image creates `/data`, `/data/keys`,
@@ -148,5 +148,5 @@ repository-scoped `GITHUB_TOKEN`; only that job receives `packages: write`. The 
 revision, and version labels. No mutable `latest` tag is produced implicitly.
 
 The workflow pins third-party action commits, uses the stable SDK selected by `global.json`, validates Compose,
-builds the digest-pinned image, checks UID/GID, prints FFmpeg/ffprobe versions, and verifies `libx264`. No Immich
+builds the digest-pinned image, checks UID/GID, prints FFmpeg/ffprobe versions, and verifies `libx264` and `libx265`. No Immich
 server or credential is required.

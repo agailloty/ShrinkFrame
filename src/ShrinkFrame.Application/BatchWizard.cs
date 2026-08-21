@@ -71,12 +71,17 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         {
             var presetId = settings.PerVideoPresets.GetValueOrDefault(jobId, settings.GlobalPresetId);
             var selected = BuiltInPresets.Get(presetId);
-            var effective = presetId == settings.GlobalPresetId ? settings.BatchOptions : BuiltInPresets.Snapshot(selected.Id);
+            var effective = presetId == settings.GlobalPresetId
+                ? settings.BatchOptions
+                : WithVideoCodec(BuiltInPresets.Snapshot(selected.Id), settings.BatchOptions.VideoCodec);
             await UpdateJobWithRetryAsync(jobId, job => job.SelectOptions(selected.Id, effective, time.GetUtcNow()), token);
         }
         await batches.UpdateAsync(batch, token);
         return await ViewAsync(batch, token);
     }
+
+    private static CompressionOptions WithVideoCodec(CompressionOptions options, VideoCodec videoCodec)
+        => new(options.Crf, options.EncoderPreset, options.MaximumResolution, options.AudioMode, options.Suffix, videoCodec);
 
     public async Task<BatchWizardView> ConfirmAsync(BatchId id, bool forceLowCapacity, CancellationToken token = default)
     {

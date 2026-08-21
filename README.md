@@ -1,7 +1,7 @@
 # ShrinkFrame
 
 ShrinkFrame is a self-hosted Blazor application that streams browser or Immich videos to a server,
-compresses them to validated H.264 MP4 with FFmpeg, and retains downloadable results. Version 1.0.0 is
+compresses them to validated H.264 or H.265/HEVC MP4 with FFmpeg, and retains downloadable results. Version 1.0.0 is
 designed for one trusted operator on a LAN or Tailscale network.
 
 > ShrinkFrame has no authentication. Do not expose it directly to the public Internet.

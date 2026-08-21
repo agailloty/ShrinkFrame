@@ -780,6 +780,26 @@ Verification performed:
 - `dotnet build ShrinkFrame.sln --configuration Release --no-restore` — completed with zero warnings and zero errors.
 - `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` — passed 213 tests (167 Domain and 46 Infrastructure) with zero failures or skips.
 
+## 2026-08-21 - Add H.265/HEVC compression
+
+Summary:
+
+- Added a persisted H.264/H.265 codec choice to batch and job compression options, defaulting migrated data to H.264.
+- Added CPU H.265 encoding through `libx265`, the MP4 `hvc1` sample entry, codec-aware output validation, and wizard controls.
+- Extended container and CI encoder checks to require both `libx264` and `libx265`.
+
+Decision deviations:
+
+- H.265/HEVC is now supported after the original version 1.0 exclusion. CPU-only encoding, MP4 output,
+  `yuv420p`, HDR rejection, typed FFmpeg arguments, and all existing validation rules remain unchanged.
+
+Verification performed:
+
+- `dotnet test tests/ShrinkFrame.Domain.Tests/ShrinkFrame.Domain.Tests.csproj --configuration Release --no-restore` passed 168 tests.
+- The full build and infrastructure suite remain blocked because NuGet's repository-signature endpoint is unreachable from this environment (`NU1301`).
+- The host FFmpeg encoder inventory includes both `libx264` and `libx265`; container verification remains pending Docker execution.
+- A one-second 320x180 synthetic `libx265` encode completed successfully; ffprobe reported `hevc`, `hvc1`, and `yuv420p`.
+
 ## 2026-08-14 — Recover batch wizard optimistic-concurrency conflicts
 
 Summary:

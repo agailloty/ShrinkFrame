@@ -85,7 +85,8 @@
     <summary>Advanced settings</summary>
     <div class="row g-3 mt-1">
         <div class="col-md-2"><label class="form-label" for="crf">CRF</label><InputNumber id="crf" class="form-control" @bind-Value="crf" min="18" max="36" disabled="@IsLocked" />@if (crf > 30) { <div class="text-warning" role="status">CRF above 30 can visibly reduce quality.</div> }</div>
-        <div class="col-md-2"><label class="form-label" for="speed">x264 speed</label><InputSelect id="speed" class="form-select" @bind-Value="speed" disabled="@IsLocked">@foreach (var value in Enum.GetValues<EncoderPreset>()) { <option value="@value">@value</option> }</InputSelect></div>
+        <div class="col-md-2"><label class="form-label" for="video-codec">Video codec</label><InputSelect id="video-codec" class="form-select" @bind-Value="videoCodec" disabled="@IsLocked"><option value="H264">H.264</option><option value="H265">H.265 / HEVC</option></InputSelect></div>
+        <div class="col-md-2"><label class="form-label" for="speed">Encoder speed</label><InputSelect id="speed" class="form-select" @bind-Value="speed" disabled="@IsLocked">@foreach (var value in Enum.GetValues<EncoderPreset>()) { <option value="@value">@value</option> }</InputSelect></div>
         <div class="col-md-2"><label class="form-label" for="resolution">Maximum</label><InputSelect id="resolution" class="form-select" @bind-Value="resolution" disabled="@IsLocked">@foreach (var value in Enum.GetValues<MaximumResolution>()) { <option value="@value">@ResolutionLabel(value)</option> }</InputSelect></div>
         <div class="col-md-2"><label class="form-label" for="audio">Audio</label><InputSelect id="audio" class="form-select" @bind-Value="audio" disabled="@IsLocked"><option value="Auto">Auto</option><option value="Copy">Copy</option><option value="Aac">AAC</option></InputSelect></div>
         <div class="col-md-2"><label class="form-label" for="suffix">Filename suffix</label><InputText id="suffix" class="form-control" @bind-Value="suffix" disabled="@IsLocked" /></div>
@@ -232,7 +233,7 @@
     <h2 id="summary-heading" class="h4">4. Summary</h2>
     <p><strong>@batch.Jobs.Count</strong> videos · source artifacts @Bytes(batch.Capacity.SourceBytes) · required capacity @Bytes(batch.Capacity.RequiredBytes) · available @Bytes(batch.Capacity.AvailableBytes).</p>
     @if (batch.Capacity.HasWarning) { <div class="alert alert-warning" role="alert">Capacity estimate is @batch.Capacity.Reason. Compression cannot be confirmed without the explicit override.</div><div class="form-check"><InputCheckbox id="force-capacity" class="form-check-input" @bind-Value="forceCapacity" disabled="@IsLocked" /><label class="form-check-label" for="force-capacity">Force processing despite low capacity</label></div> }
-    <div class="table-responsive"><table class="table wizard-card-table summary-table"><thead><tr><th>Video</th><th>Source size</th><th>Persisted effective options</th></tr></thead><tbody>@foreach (var job in batch.Jobs) { <tr><td>@job.FileName</td><td>@Bytes(job.SizeBytes)</td><td>CRF @job.EffectiveOptions.Crf, @job.EffectiveOptions.EncoderPreset, @ResolutionLabel(job.EffectiveOptions.MaximumResolution), @job.EffectiveOptions.AudioMode, @job.EffectiveOptions.Suffix</td></tr> }</tbody></table></div>
+    <div class="table-responsive"><table class="table wizard-card-table summary-table"><thead><tr><th>Video</th><th>Source size</th><th>Persisted effective options</th></tr></thead><tbody>@foreach (var job in batch.Jobs) { <tr><td>@job.FileName</td><td>@Bytes(job.SizeBytes)</td><td>@CodecLabel(job.EffectiveOptions.VideoCodec), CRF @job.EffectiveOptions.Crf, @job.EffectiveOptions.EncoderPreset, @ResolutionLabel(job.EffectiveOptions.MaximumResolution), @job.EffectiveOptions.AudioMode, @job.EffectiveOptions.Suffix</td></tr> }</tbody></table></div>
 </section>
 <div class="wizard-actions"><button class="btn btn-outline-secondary" @onclick="() => OpenStep(3)">Back</button>@if (!IsLocked) { <button class="btn btn-success" disabled="@(batch.Capacity.RequiresOverride && !forceCapacity)" @onclick="ConfirmAsync">Confirm and start</button> }</div>
 }
@@ -242,7 +243,7 @@
     private SourceKind sourceKind = SourceKind.BrowserUpload; private string batchName = $"Browser upload {DateTime.Now:yyyy-MM-dd HH:mm}";
     private BatchWizardView? batch; private ConnectionId? immichConnection; private IReadOnlyList<BatchSelection> immichSelection = [];
     private readonly List<UploadRow> files = []; private readonly Dictionary<JobId, PresetId> perVideo = [];
-    private PresetId globalPreset = new("balanced"); private int crf = 24; private EncoderPreset speed = EncoderPreset.Medium;
+    private PresetId globalPreset = new("balanced"); private VideoCodec videoCodec = VideoCodec.H264; private int crf = 24; private EncoderPreset speed = EncoderPreset.Medium;
     private MaximumResolution resolution = MaximumResolution.Keep; private AudioMode audio = AudioMode.Auto; private string suffix = "_V";
     private int activeStep = 1; private bool showSummary, forceCapacity; private string? errorCode, error;
     private bool refreshing, runningAction; private DateTimeOffset? lastUpdated;
@@ -294,7 +295,7 @@
     private async Task GlobalPresetChanged(ChangeEventArgs e) { globalPreset = new(e.Value?.ToString() ?? "balanced"); LoadOptions(BuiltInPresets.Snapshot(globalPreset)); await InvokeAsync(StateHasChanged); }
     private void PerVideoChanged(JobId id, string? value) { if (string.IsNullOrEmpty(value)) perVideo.Remove(id); else perVideo[id] = new(value); }
     private string SelectedPreset(JobId id) => perVideo.TryGetValue(id, out var value) ? value.Value : "";
-    private async Task SaveAndShowSummaryAsync() => await RunAsync(async () => { var options = new CompressionOptions(crf, speed, resolution, audio, suffix); batch = await Wizard.SaveSettingsAsync(batch!.Id, new(batchName, globalPreset, options, perVideo)); showSummary = true; activeStep = 4; });
+    private async Task SaveAndShowSummaryAsync() => await RunAsync(async () => { var options = new CompressionOptions(crf, speed, resolution, audio, suffix, videoCodec); batch = await Wizard.SaveSettingsAsync(batch!.Id, new(batchName, globalPreset, options, perVideo)); showSummary = true; activeStep = 4; });
     private async Task ConfirmAsync() => await RunAsync(async () => { batch = await Wizard.ConfirmAsync(batch!.Id, forceCapacity); showSummary = true; activeStep = 5; await RefreshRuntimeAsync(); });
     private async Task RefreshRuntimeAsync() { if (batch is null) return; foreach (var job in batch.Jobs) { var value = await WorkerStore.GetRuntimeAsync(job.Id); if (value is not null) runtimes[job.Id] = value; var publication = await Publications.GetAsync(job.Id); if (publication is not null) publicationResults[job.Id] = publication; } batchProgress = await WorkerStore.GetBatchProgressAsync(batch.Id); lastUpdated = Time.GetUtcNow(); }
     private async Task RefreshResultsAsync() => await RunAsync(async () => { refreshing = true; try { batch = await Wizard.GetAsync(batch!.Id); await RefreshRuntimeAsync(); } finally { refreshing = false; } });
@@ -365,7 +366,8 @@
     }
     private static string SavingsClass(long? sourceBytes, long outputBytes) => sourceBytes is > 0 && outputBytes < sourceBytes ? "text-success" : sourceBytes is > 0 && outputBytes >= sourceBytes ? "text-warning" : "text-body-secondary";
     private static string Bitrate(long? value) => value.HasValue ? $"{value.Value / 1000d:N0} kb/s" : "—";
-    private void LoadOptions(CompressionOptions value) => (crf, speed, resolution, audio, suffix) = (value.Crf, value.EncoderPreset, value.MaximumResolution, value.AudioMode, value.Suffix);
+    private void LoadOptions(CompressionOptions value) => (videoCodec, crf, speed, resolution, audio, suffix) = (value.VideoCodec, value.Crf, value.EncoderPreset, value.MaximumResolution, value.AudioMode, value.Suffix);
+    private static string CodecLabel(VideoCodec value) => value == VideoCodec.H265 ? "H.265 / HEVC" : "H.264";
     private async Task RunAsync(Func<Task> action) { error = errorCode = null; runningAction = true; try { await action(); } catch (DomainException ex) { errorCode = ex.Code; error = ex.Message; } catch (ImmichConnectionException ex) { errorCode = ex.Code; error = ex.Message; } catch (Exception ex) { errorCode = "batch.invalid"; error = ex.Message; } finally { runningAction = false; } }
     private async Task RefreshLoopAsync(CancellationToken token)
     {

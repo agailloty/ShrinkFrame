@@ -44,6 +44,7 @@ internal sealed class BatchConfiguration : IEntityTypeConfiguration<BatchEntity>
         builder.Property(x => x.SourceKind).HasMaxLength(32);
         builder.Property(x => x.Status).HasMaxLength(32);
         builder.Property(x => x.DefaultEncoderPreset).HasMaxLength(32);
+        builder.Property(x => x.DefaultVideoCodec).HasMaxLength(16);
         builder.Property(x => x.DefaultMaximumResolution).HasMaxLength(32);
         builder.Property(x => x.DefaultAudioMode).HasMaxLength(32);
         builder.Property(x => x.DefaultSuffix).HasMaxLength(33);
@@ -64,6 +65,7 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<JobEntity>
         builder.Property(x => x.SourceId).HasMaxLength(500);
         builder.Property(x => x.PresetId).HasMaxLength(100);
         builder.Property(x => x.EncoderPreset).HasMaxLength(32);
+        builder.Property(x => x.VideoCodec).HasMaxLength(16);
         builder.Property(x => x.MaximumResolution).HasMaxLength(32);
         builder.Property(x => x.AudioMode).HasMaxLength(32);
         builder.Property(x => x.Suffix).HasMaxLength(33);

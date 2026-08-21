@@ -22,7 +22,7 @@ Never store raw video bytes, full API keys, or unconstrained filesystem paths in
 
 - `VideoSourceRef`: kind, source-specific ID, connection ID when applicable.
 - `VideoMetadata`: filename, MIME type, size, duration, dimensions, codecs, capture time, effective rotation, description, coordinates, album references.
-- `CompressionOptions`: CRF, encoder preset, maximum resolution, audio mode, suffix.
+- `CompressionOptions`: video codec, CRF, encoder preset, maximum resolution, audio mode, suffix.
 - `ArtifactRef`: opaque storage key, never an absolute path.
 - `ValidationFinding`: code, severity, message.
 - `TransferProgress` and `CompressionProgress`.
@@ -33,7 +33,7 @@ Built-in presets are immutable and identified by stable IDs. A job stores the ef
 
 Initial presets:
 
-| ID | Name | CRF | x264 preset | Maximum |
+| ID | Name | CRF | encoder preset | Maximum |
 |---|---|---:|---|---|
 | `archival-quality` | Archival Quality | 18 | slow | Keep |
 | `high-quality` | High Quality | 21 | medium | Keep |

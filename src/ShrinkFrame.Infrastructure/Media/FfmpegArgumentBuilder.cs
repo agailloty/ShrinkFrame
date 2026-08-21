@@ -24,11 +24,13 @@ public sealed class FfmpegArgumentBuilder(MediaToolOptions options)
             "-map", $"0:{request.VideoStreamIndex}",
         };
         if (request.AudioStreamIndex is int audioIndex) args.AddRange(["-map", $"0:{audioIndex}"]);
-        args.AddRange(["-map_metadata", "0", "-map_chapters", "0", "-c:v", "libx264",
+        var encoder = request.Options.VideoCodec == VideoCodec.H265 ? "libx265" : "libx264";
+        args.AddRange(["-map_metadata", "0", "-map_chapters", "0", "-c:v", encoder,
             "-preset", request.Options.EncoderPreset.ToString().ToLowerInvariant(),
             "-crf", request.Options.Crf.ToString(CultureInfo.InvariantCulture),
             "-pix_fmt", "yuv420p", "-vf", $"scale={target.Width}:{target.Height}:flags=lanczos",
             "-metadata:s:v:0", $"rotate={request.EffectiveRotation}"]);
+        if (request.Options.VideoCodec == VideoCodec.H265) args.AddRange(["-tag:v", "hvc1"]);
         if (request.AudioStreamIndex is int)
         {
             var mode = MediaPolicies.ResolveAudioMode(request.Options.AudioMode, request.AudioCodec ?? "unknown");

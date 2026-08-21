@@ -20,7 +20,7 @@ Status: accepted for version 1.0. Change a decision only through a dated entry i
 
 ## Media
 
-- H.264 via libx264 in MP4; CPU only; `faststart` always enabled.
+- User-selectable H.264 via `libx264` or H.265/HEVC via `libx265` in MP4; CPU only; `faststart` always enabled. H.265 uses the `hvc1` sample entry.
 - Audio is stream-copied when MP4-compatible, otherwise transcoded to AAC.
 - Global preset with a per-video alternative preset; no per-video free-form advanced values.
 - Built-in immutable presets only; advanced batch values are temporary.

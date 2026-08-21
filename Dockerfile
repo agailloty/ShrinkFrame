@@ -33,6 +33,7 @@ RUN apt-get update \
     && ffmpeg -hide_banner -version \
     && ffprobe -hide_banner -version \
     && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q 'libx264' \
+    && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q 'libx265' \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

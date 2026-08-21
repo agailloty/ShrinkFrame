@@ -32,7 +32,7 @@ The application derives an effective orientation rather than relying only on wid
 ## Output contract
 
 - Container: MP4.
-- Video: libx264 H.264.
+- Video: user-selected `libx264` H.264 or `libx265` H.265/HEVC. H.265 MP4 uses the `hvc1` sample entry for broad player compatibility.
 - Pixel format: use broadly compatible `yuv420p` unless the validated source/policy explicitly requires otherwise; HDR behavior must be documented and may be rejected with a clear warning in version 1.0 rather than silently damaged.
 - Enable `+faststart` unconditionally.
 - Map intended video/audio streams and global metadata deliberately.
@@ -56,7 +56,7 @@ Output is accepted only when:
 
 - FFmpeg exit code is zero;
 - final ffprobe succeeds;
-- exactly the intended primary video is present and encoded H.264;
+- exactly the intended primary video is present and encoded with the selected H.264 or H.265/HEVC codec;
 - duration difference is no greater than `max(1 second, inputDuration * 0.005)`;
 - dimensions are positive, even, within the selected maximum, and not upscaled;
 - effective rotation matches the input presentation;
@@ -67,7 +67,7 @@ Loss of capture date or rotation is blocking. Other lost metadata becomes a warn
 
 ## Version 1.0 HDR limitation
 
-Version 1.0 rejects video identified by ffprobe as PQ (`smpte2084`) or HLG (`arib-std-b67`). Its H.264 output policy is 8-bit `yuv420p`, and no validated tone-mapping or HDR metadata-preservation pipeline is configured. Converting such input would risk washed-out colors or clipped highlights. HDR support requires a later explicit color-management policy and validation fixtures; it must not be enabled by merely removing the rejection.
+Version 1.0 rejects video identified by ffprobe as PQ (`smpte2084`) or HLG (`arib-std-b67`). Both output codecs currently use 8-bit `yuv420p`, and no validated tone-mapping or HDR metadata-preservation pipeline is configured. Converting such input would risk washed-out colors or clipped highlights. HDR support requires a later explicit color-management policy and validation fixtures; it must not be enabled by merely removing the rejection.
 
 ## Repeatable manual checks
 

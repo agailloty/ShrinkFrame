@@ -14,7 +14,7 @@ safety. Prompt 15 verification results are recorded in the latest implementation
 |---|---|
 | Select/upload multiple videos | Browser streaming and persisted selection have automated/component evidence. Browser acceptance with the external media corpus remains blocked without an interactive browser run and corpus. |
 | Acquire from one Immich instance | Adapter and queue behavior have automated coverage; live Immich 3.1.x search/download is blocked because no test instance or non-admin test key was supplied. |
-| Compress to validated H.264 MP4 | FFmpeg argument/probe/validation tests and prior synthetic host-media evidence pass; container execution awaits Docker Engine. |
+| Compress to validated H.264 or H.265/HEVC MP4 | FFmpeg argument/probe/validation tests pass; H.264 has prior synthetic host-media evidence and H.265 container execution awaits Docker Engine. |
 | Observe progress across restart | Durable progress/recovery tests pass; forced container restart during real compression awaits Docker Engine and large test media. |
 | Download results | Range endpoint contract and automated coverage exist; browser download against a deployed container awaits Docker Engine/browser. |
 | Publish selected results to source Immich | Grouped publication, per-result force, source-instance enforcement, checksum reconciliation, immediate asset-ID persistence, and partial album retry are implemented and covered with fakes. Live Immich acceptance remains blocked without a dedicated server/key. |

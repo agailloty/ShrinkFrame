@@ -43,6 +43,7 @@ jobs:
           docker run --rm --entrypoint /usr/bin/ffmpeg shrinkframe:ci -hide_banner -version
           docker run --rm --entrypoint /usr/bin/ffprobe shrinkframe:ci -hide_banner -version
           docker run --rm --entrypoint /bin/bash shrinkframe:ci -c "ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264"
+          docker run --rm --entrypoint /bin/bash shrinkframe:ci -c "ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx265"
 
   publish-container:
     if: github.ref_type == 'tag'
