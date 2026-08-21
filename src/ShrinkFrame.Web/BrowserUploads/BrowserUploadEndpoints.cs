@@ -23,7 +23,7 @@ public static class BrowserUploadEndpoints
             CancellationToken token) =>
         {
             var id = BatchId.New();
-            var preset = BuiltInPresets.Get(new PresetId("balanced"));
+            var preset = BuiltInPresets.Get(new PresetId("compact"));
             var name = string.IsNullOrWhiteSpace(request.Name)
                 ? $"Browser upload {time.GetLocalNow():yyyy-MM-dd HH:mm}"
                 : request.Name.Trim();

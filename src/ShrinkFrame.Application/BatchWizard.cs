@@ -26,7 +26,7 @@ public interface IBatchWizard
 public sealed class BatchWizard(IBatchRepository batches, ICompressionJobRepository jobs,
     IDiskCapacityService capacity, TimeProvider time) : IBatchWizard
 {
-    private static readonly PresetId Balanced = new("balanced");
+    private static readonly PresetId DefaultPreset = new("compact");
     public IReadOnlyList<BuiltInPreset> Presets => BuiltInPresets.All;
 
     public async Task<BatchWizardView> CreateAsync(SourceKind sourceKind, ConnectionId? connectionId, string? name = null, CancellationToken token = default)
@@ -34,7 +34,7 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         var now = time.GetUtcNow();
         var generated = $"{(sourceKind == SourceKind.Immich ? "Immich" : "Browser upload")} {time.GetLocalNow():yyyy-MM-dd HH:mm}";
         var batch = new CompressionBatch(BatchId.New(), string.IsNullOrWhiteSpace(name) ? generated : name,
-            sourceKind, connectionId, BuiltInPresets.Snapshot(Balanced), now);
+            sourceKind, connectionId, BuiltInPresets.Snapshot(DefaultPreset), now);
         await batches.AddAsync(batch, token);
         return await ViewAsync(batch, token);
     }
@@ -54,7 +54,7 @@ public sealed class BatchWizard(IBatchRepository batches, ICompressionJobReposit
         foreach (var item in selection.Where(x => !existing.Contains(x.SourceId)))
         {
             var source = VideoSourceRef.Immich(item.SourceId, batch.ConnectionId.Value);
-            var job = new CompressionJob(JobId.New(), id, source, Balanced, batch.DefaultOptions, time.GetUtcNow());
+            var job = new CompressionJob(JobId.New(), id, source, DefaultPreset, batch.DefaultOptions, time.GetUtcNow());
             await jobs.AddAsync(job, token); batch.AddJob(job.Id, source, time.GetUtcNow());
         }
         await batches.UpdateAsync(batch, token);

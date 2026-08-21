@@ -33,15 +33,16 @@ Built-in presets are immutable and identified by stable IDs. A job stores the ef
 
 Initial presets:
 
-| ID | Name | CRF | encoder preset | Maximum |
-|---|---|---:|---|---|
-| `archival-quality` | Archival Quality | 18 | slow | Keep |
-| `high-quality` | High Quality | 21 | medium | Keep |
-| `balanced` | Balanced | 24 | medium | Keep |
-| `smaller-file` | Smaller File | 27 | medium | Keep |
-| `full-hd` | Full HD | 23 | medium | 1080p |
-| `hd` | HD | 24 | medium | 720p |
-| `smallest-practical` | Smallest Practical | 30 | slow | 720p |
+| ID | Name | Codec | CRF | encoder preset | Maximum |
+|---|---|---|---:|---|---|
+| `compact` | Compact | H.265 | 30 | medium | Keep |
+| `archival-quality` | Archival Quality | H.264 | 18 | slow | Keep |
+| `high-quality` | High Quality | H.264 | 21 | medium | Keep |
+| `balanced` | Balanced | H.264 | 24 | medium | Keep |
+| `smaller-file` | Smaller File | H.264 | 27 | medium | Keep |
+| `full-hd` | Full HD | H.264 | 23 | medium | 1080p |
+| `hd` | HD | H.264 | 24 | medium | 720p |
+| `smallest-practical` | Smallest Practical | H.264 | 30 | slow | 720p |
 
 Allowed CRF range is 18 through 36 inclusive; warn when above 30. Available maximum resolutions: Keep, 2160p, 1440p, 1080p, 720p, 480p. Never upscale.
 

@@ -45,11 +45,6 @@ namespace ShrinkFrame.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("DefaultVideoCodec")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("DefaultMaximumResolution")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -58,6 +53,11 @@ namespace ShrinkFrame.Infrastructure.Persistence.Migrations
                     b.Property<string>("DefaultSuffix")
                         .IsRequired()
                         .HasMaxLength(33)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultVideoCodec")
+                        .IsRequired()
+                        .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -232,11 +232,6 @@ namespace ShrinkFrame.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("VideoCodec")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("MaximumResolution")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -337,6 +332,11 @@ namespace ShrinkFrame.Infrastructure.Persistence.Migrations
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("VideoCodec")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 

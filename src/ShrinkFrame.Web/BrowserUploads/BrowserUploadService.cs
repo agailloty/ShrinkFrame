@@ -30,7 +30,7 @@ public sealed class BrowserUploadService(
 
         displayFileName = DisplayName(displayFileName);
         var jobId = JobId.New();
-        var preset = BuiltInPresets.Get(new PresetId("balanced"));
+        var preset = BuiltInPresets.Get(new PresetId("compact"));
         var job = new CompressionJob(jobId, batchId, VideoSourceRef.Browser(displayFileName),
             preset.Id, batch.DefaultOptions, time.GetUtcNow());
         var stored = await jobs.AddAsync(job, cancellationToken);

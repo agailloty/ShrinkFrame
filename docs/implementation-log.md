@@ -796,9 +796,23 @@ Decision deviations:
 Verification performed:
 
 - `dotnet test tests/ShrinkFrame.Domain.Tests/ShrinkFrame.Domain.Tests.csproj --configuration Release --no-restore` passed 168 tests.
-- The full build and infrastructure suite remain blocked because NuGet's repository-signature endpoint is unreachable from this environment (`NU1301`).
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` passed 215 tests (168 Domain and 47 Infrastructure).
 - The host FFmpeg encoder inventory includes both `libx264` and `libx265`; container verification remains pending Docker execution.
 - A one-second 320x180 synthetic `libx265` encode completed successfully; ffprobe reported `hevc`, `hvc1`, and `yuv420p`.
+
+## 2026-08-21 - Make Compact the default preset
+
+Summary:
+
+- Added the built-in `compact` preset: H.265/HEVC, CRF 30, medium encoder speed, keep resolution, and automatic audio handling.
+- Made `compact` the initial preset for browser and Immich batches while retaining `balanced` for existing persisted jobs and manual selection.
+- Kept the selected batch codec global when a different quality preset is assigned to an individual video.
+
+Verification performed:
+
+- `dotnet build ShrinkFrame.sln --configuration Release --no-restore` completed with zero warnings and zero errors.
+- `dotnet test ShrinkFrame.sln --configuration Release --no-build --no-restore` passed 215 tests (168 Domain and 47 Infrastructure).
 
 ## 2026-08-14 — Recover batch wizard optimistic-concurrency conflicts
 

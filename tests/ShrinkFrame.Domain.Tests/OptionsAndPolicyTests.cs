@@ -78,12 +78,17 @@ public sealed class OptionsAndPolicyTests
     [TestMethod]
     public void Built_in_presets_are_complete_and_snapshots_are_independent()
     {
-        Assert.AreEqual(7, BuiltInPresets.All.Count);
+        Assert.AreEqual(8, BuiltInPresets.All.Count);
         var first = BuiltInPresets.Snapshot(new("balanced"));
         var second = BuiltInPresets.Snapshot(new("balanced"));
         Assert.AreNotSame(first, second);
         Assert.AreEqual(first, second);
         Assert.ThrowsExactly<NotSupportedException>(() => ((IList<BuiltInPreset>)BuiltInPresets.All).Add(BuiltInPresets.All[0]));
+
+        var compact = BuiltInPresets.Get(new("compact"));
+        Assert.AreEqual("Compact", compact.Name);
+        Assert.AreEqual(new CompressionOptions(30, EncoderPreset.Medium, MaximumResolution.Keep,
+            AudioMode.Auto, "_V", VideoCodec.H265), compact.Options);
     }
 
     [TestMethod]

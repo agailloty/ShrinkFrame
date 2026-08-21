@@ -32,6 +32,7 @@ public static class BuiltInPresets
 {
     private static readonly ReadOnlyCollection<BuiltInPreset> Presets = Array.AsReadOnly(new[]
     {
+        Make("compact", "Compact", 30, EncoderPreset.Medium, MaximumResolution.Keep, VideoCodec.H265),
         Make("archival-quality", "Archival Quality", 18, EncoderPreset.Slow, MaximumResolution.Keep),
         Make("high-quality", "High Quality", 21, EncoderPreset.Medium, MaximumResolution.Keep),
         Make("balanced", "Balanced", 24, EncoderPreset.Medium, MaximumResolution.Keep),
@@ -48,6 +49,7 @@ public static class BuiltInPresets
         var o = Get(id).Options;
         return new(o.Crf, o.EncoderPreset, o.MaximumResolution, o.AudioMode, o.Suffix, o.VideoCodec);
     }
-    private static BuiltInPreset Make(string id, string name, int crf, EncoderPreset preset, MaximumResolution resolution)
-        => new(new(id), name, new(crf, preset, resolution, AudioMode.Auto, "_V"));
+    private static BuiltInPreset Make(string id, string name, int crf, EncoderPreset preset, MaximumResolution resolution,
+        VideoCodec videoCodec = VideoCodec.H264)
+        => new(new(id), name, new(crf, preset, resolution, AudioMode.Auto, "_V", videoCodec));
 }

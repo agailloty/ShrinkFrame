@@ -243,7 +243,7 @@
     private SourceKind sourceKind = SourceKind.BrowserUpload; private string batchName = $"Browser upload {DateTime.Now:yyyy-MM-dd HH:mm}";
     private BatchWizardView? batch; private ConnectionId? immichConnection; private IReadOnlyList<BatchSelection> immichSelection = [];
     private readonly List<UploadRow> files = []; private readonly Dictionary<JobId, PresetId> perVideo = [];
-    private PresetId globalPreset = new("balanced"); private VideoCodec videoCodec = VideoCodec.H264; private int crf = 24; private EncoderPreset speed = EncoderPreset.Medium;
+    private PresetId globalPreset = new("compact"); private VideoCodec videoCodec = VideoCodec.H265; private int crf = 30; private EncoderPreset speed = EncoderPreset.Medium;
     private MaximumResolution resolution = MaximumResolution.Keep; private AudioMode audio = AudioMode.Auto; private string suffix = "_V";
     private int activeStep = 1; private bool showSummary, forceCapacity; private string? errorCode, error;
     private bool refreshing, runningAction; private DateTimeOffset? lastUpdated;
@@ -292,7 +292,7 @@
         else if (batch is not null) { uploadInitialized = false; activeStep = 3; }
     }
     private async Task CreateImmichBatchAsync() => await RunAsync(async () => { batch = await Wizard.CreateAsync(SourceKind.Immich, immichConnection, batchName); batch = await Wizard.AddImmichSelectionAsync(batch.Id, immichSelection); LoadOptions(batch.DefaultOptions); activeStep = 3; });
-    private async Task GlobalPresetChanged(ChangeEventArgs e) { globalPreset = new(e.Value?.ToString() ?? "balanced"); LoadOptions(BuiltInPresets.Snapshot(globalPreset)); await InvokeAsync(StateHasChanged); }
+    private async Task GlobalPresetChanged(ChangeEventArgs e) { globalPreset = new(e.Value?.ToString() ?? "compact"); LoadOptions(BuiltInPresets.Snapshot(globalPreset)); await InvokeAsync(StateHasChanged); }
     private void PerVideoChanged(JobId id, string? value) { if (string.IsNullOrEmpty(value)) perVideo.Remove(id); else perVideo[id] = new(value); }
     private string SelectedPreset(JobId id) => perVideo.TryGetValue(id, out var value) ? value.Value : "";
     private async Task SaveAndShowSummaryAsync() => await RunAsync(async () => { var options = new CompressionOptions(crf, speed, resolution, audio, suffix, videoCodec); batch = await Wizard.SaveSettingsAsync(batch!.Id, new(batchName, globalPreset, options, perVideo)); showSummary = true; activeStep = 4; });
